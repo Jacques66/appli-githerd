@@ -660,8 +660,8 @@ class RepoTabContent(ctk.CTkFrame):
         if self.log_visible:
             self.log_frame.pack_forget()
             self.btn_toggle_log.configure(text="▶ Log")
-            # Shrink window when log is hidden
-            self.app.geometry("1000x320")
+            # Shrink window when log is hidden (just below buttons)
+            self.app.geometry("1000x200")
         else:
             self.log_frame.pack(fill="both", expand=True, padx=10, pady=6)
             self.btn_toggle_log.configure(text="▼ Log")
