@@ -549,38 +549,49 @@ class RepoTabContent(ctk.CTkFrame):
     def show_config_dialog(self):
         dialog = ctk.CTkToplevel(self.app)
         dialog.title(f"Options — {self.repo_path.name}")
-        dialog.geometry("450x350")
+        dialog.geometry("450x300")
         dialog.transient(self.app)
-        dialog.grab_set()
         dialog.resizable(False, False)
 
-        # Main frame
+        # Wait for window to be created
+        dialog.update()
+
+        # Main frame with internal padding
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
 
+        # Section title
+        ctk.CTkLabel(main_frame, text="Repository settings",
+                    font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=2, sticky="w", padx=15, pady=(15, 10))
+
         # Remote
-        ctk.CTkLabel(main_frame, text="Remote:").grid(row=0, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(main_frame, text="Remote:").grid(
+            row=1, column=0, sticky="w", padx=15, pady=8)
         remote_entry = ctk.CTkEntry(main_frame, width=250)
         remote_entry.insert(0, self.remote)
-        remote_entry.grid(row=0, column=1, sticky="ew", pady=8, padx=(10, 0))
+        remote_entry.grid(row=1, column=1, sticky="ew", padx=(10, 15), pady=8)
 
         # Main branch
-        ctk.CTkLabel(main_frame, text="Main branch:").grid(row=1, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(main_frame, text="Main branch:").grid(
+            row=2, column=0, sticky="w", padx=15, pady=8)
         main_entry = ctk.CTkEntry(main_frame, width=250)
         main_entry.insert(0, self.main)
-        main_entry.grid(row=1, column=1, sticky="ew", pady=8, padx=(10, 0))
+        main_entry.grid(row=2, column=1, sticky="ew", padx=(10, 15), pady=8)
 
         # Branch prefix
-        ctk.CTkLabel(main_frame, text="Branch prefix:").grid(row=2, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(main_frame, text="Branch prefix:").grid(
+            row=3, column=0, sticky="w", padx=15, pady=8)
         prefix_entry = ctk.CTkEntry(main_frame, width=250)
         prefix_entry.insert(0, self.prefix)
-        prefix_entry.grid(row=2, column=1, sticky="ew", pady=8, padx=(10, 0))
+        prefix_entry.grid(row=3, column=1, sticky="ew", padx=(10, 15), pady=8)
 
         # Interval
-        ctk.CTkLabel(main_frame, text="Interval (sec):").grid(row=3, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(main_frame, text="Interval (sec):").grid(
+            row=4, column=0, sticky="w", padx=15, pady=8)
         interval_entry = ctk.CTkEntry(main_frame, width=100)
         interval_entry.insert(0, str(self.interval))
-        interval_entry.grid(row=3, column=1, sticky="w", pady=8, padx=(10, 0))
+        interval_entry.grid(row=4, column=1, sticky="w", padx=(10, 15), pady=8)
 
         main_frame.columnconfigure(1, weight=1)
 
@@ -616,6 +627,9 @@ class RepoTabContent(ctk.CTkFrame):
 
         ctk.CTkButton(btn_frame, text="Save", command=save_config).pack(side="left", padx=5)
         ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left", padx=5)
+
+        # Grab focus after widgets are created
+        dialog.grab_set()
 
     def open_folder(self):
         try:
@@ -1151,6 +1165,14 @@ class App(ctk.CTk):
                              accelerator="Ctrl+R")
         file_menu.add_command(label="Quit", command=self.on_close, accelerator="Ctrl+Q")
 
+        # Repository menu
+        self.repo_menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Repository", menu=self.repo_menu)
+        self.repo_menu.add_command(label="Options...", command=self.show_current_repo_options)
+        self.repo_menu.add_command(label="Open folder", command=self.open_current_folder)
+        self.repo_menu.add_separator()
+        self.repo_menu.add_command(label="Close", command=self.close_current_tab)
+
         # ? menu (Options + Help)
         help_menu = tk.Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="?", menu=help_menu)
@@ -1246,7 +1268,7 @@ class App(ctk.CTk):
     def show_global_settings(self):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Settings")
-        dialog.geometry("500x480")
+        dialog.geometry("500x520")
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
@@ -1286,6 +1308,27 @@ class App(ctk.CTk):
         theme_menu.grid(row=row, column=1, sticky="w", pady=8, padx=(10, 0))
         ctk.CTkLabel(main_frame, text="(restart required)", text_color="gray").grid(
             row=row, column=2, sticky="w", padx=5)
+        row += 1
+
+        # Font zoom
+        ctk.CTkLabel(main_frame, text="Font zoom:").grid(row=row, column=0, sticky="w", pady=8)
+        zoom_var = ctk.DoubleVar(value=self.global_settings.get("font_zoom", 1.0))
+        zoom_label = ctk.CTkLabel(main_frame, text=f"{zoom_var.get():.1f}x")
+        zoom_label.grid(row=row, column=2, sticky="w", padx=5)
+
+        def update_zoom_label(val):
+            zoom_label.configure(text=f"{float(val):.1f}x")
+
+        zoom_slider = ctk.CTkSlider(
+            main_frame,
+            from_=0.5,
+            to=2.0,
+            number_of_steps=15,
+            variable=zoom_var,
+            width=150,
+            command=update_zoom_label
+        )
+        zoom_slider.grid(row=row, column=1, sticky="w", pady=8, padx=(10, 0))
         row += 1
 
         # Separator
@@ -1349,6 +1392,7 @@ class App(ctk.CTk):
 
             self.global_settings["appearance_mode"] = appearance_var.get()
             self.global_settings["color_theme"] = new_theme
+            self.global_settings["font_zoom"] = zoom_var.get()
             self.global_settings["git_binary"] = git_entry.get().strip()
             self.global_settings["auto_start_polling"] = auto_poll_var.get()
             self.global_settings["desktop_notifications"] = notif_var.get()
@@ -1498,6 +1542,33 @@ class App(ctk.CTk):
                 f"{stopped} polling(s) stopped.",
                 parent=self
             ))
+
+    def get_current_tab(self):
+        """Get the current tab content object."""
+        if not self.tabs:
+            return None
+        current_name = self.tabview.get()
+        return self.tabs.get(current_name)
+
+    def show_current_repo_options(self):
+        """Show options for current repository."""
+        tab = self.get_current_tab()
+        if tab:
+            tab.show_config_dialog()
+
+    def open_current_folder(self):
+        """Open current repository folder."""
+        tab = self.get_current_tab()
+        if tab:
+            tab.open_folder()
+
+    def close_current_tab(self):
+        """Close current repository tab."""
+        if not self.tabs:
+            return
+        current_name = self.tabview.get()
+        if current_name:
+            self.close_tab(current_name)
 
     def restart_app(self):
         any_sync_locked = any(tab.lock.locked() for tab in self.tabs.values())
