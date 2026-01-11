@@ -656,6 +656,7 @@ class RepoTabContent(ctk.CTkFrame):
 
         if success:
             self.log_msg(f"Branch {branch_name} deleted")
+            self.app.update_repo_menu()
             self.manual_sync()
         else:
             self.log_msg(f"Error: {err}")
@@ -1175,15 +1176,10 @@ class App(ctk.CTk):
                              accelerator="Ctrl+R")
         file_menu.add_command(label="Quit", command=self.on_close, accelerator="Ctrl+Q")
 
-        # Repository menu
+        # Repository menu (dynamically updated)
         self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+        self.menu_font = menu_font  # Save for update_repo_menu
         self.menubar.add_cascade(label="Repository", menu=self.repo_menu)
-        self.repo_menu.add_command(label="Options...", command=self.show_current_repo_options)
-        self.repo_menu.add_command(label="Open folder", command=self.open_current_folder)
-        self.repo_menu.add_separator()
-        self.repo_menu.add_command(label="Delete prefix branches...", command=self.delete_prefix_branches)
-        self.repo_menu.add_separator()
-        self.repo_menu.add_command(label="Close", command=self.close_current_tab)
 
         # ? menu (Options + Help)
         help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
@@ -1574,6 +1570,9 @@ class App(ctk.CTk):
             tab.has_update = False
             self.update_tab_color(tab)
 
+        # Update Repository menu for new tab
+        self.update_repo_menu()
+
     def close_tab(self, tab_name):
         if tab_name in self.tabs:
             tab = self.tabs[tab_name]
@@ -1647,6 +1646,55 @@ class App(ctk.CTk):
             return None
         return self.tabs.get(self.current_tab)
 
+    def update_repo_menu(self):
+        """Rebuild the Repository menu for current tab."""
+        self.repo_menu.delete(0, "end")
+
+        tab = self.get_current_tab()
+        if not tab:
+            self.repo_menu.add_command(label="(no repository)", state="disabled")
+            return
+
+        # Options
+        self.repo_menu.add_command(label="Options...", command=tab.show_config_dialog)
+        self.repo_menu.add_command(label="Open folder", command=tab.open_folder)
+        self.repo_menu.add_separator()
+
+        # Sync actions
+        self.repo_menu.add_command(
+            label="Sync now",
+            command=tab.manual_sync,
+            state="normal" if tab.git_healthy else "disabled"
+        )
+
+        polling_label = "Stop polling" if tab.polling else "Start polling"
+        self.repo_menu.add_command(
+            label=polling_label,
+            command=tab.toggle_polling,
+            state="normal" if tab.git_healthy else "disabled"
+        )
+
+        self.repo_menu.add_separator()
+
+        # List branches matching prefix
+        try:
+            branches = get_tracked_branches(tab.remote, tab.prefix,
+                                           cwd=tab.repo_path, git=tab.git)
+        except:
+            branches = []
+
+        if branches:
+            for b in branches:
+                short_name = b.replace(f"{tab.remote}/", "")
+                self.repo_menu.add_command(
+                    label=f"Delete {short_name}",
+                    command=lambda bn=short_name: tab.delete_branch(bn)
+                )
+            self.repo_menu.add_separator()
+
+        # Close tab
+        self.repo_menu.add_command(label="Close", command=self.close_current_tab)
+
     def show_current_repo_options(self):
         """Show options for current repository."""
         tab = self.get_current_tab()
@@ -1664,81 +1712,6 @@ class App(ctk.CTk):
         if not self.tabs or not self.current_tab:
             return
         self.close_tab(self.current_tab)
-
-    def delete_prefix_branches(self):
-        """Delete all remote branches matching the prefix for current repo."""
-        tab = self.get_current_tab()
-        if not tab:
-            return
-
-        prefix = tab.prefix
-        remote = tab.remote
-        git = tab.git
-
-        # Get list of branches matching prefix
-        code, out, err = run_git(
-            [git, "ls-remote", "--heads", remote],
-            cwd=tab.repo_path
-        )
-        if code != 0:
-            messagebox.showerror("Error", f"Cannot list remote branches:\n{err}", parent=self)
-            return
-
-        # Parse branches
-        branches = []
-        for line in out.splitlines():
-            if "\trefs/heads/" in line:
-                branch = line.split("refs/heads/")[1]
-                if branch.startswith(prefix):
-                    branches.append(branch)
-
-        if not branches:
-            messagebox.showinfo(
-                "No branches",
-                f"No remote branches matching '{prefix}*' found.",
-                parent=self
-            )
-            return
-
-        # Confirm deletion
-        branch_list = "\n".join(f"  • {b}" for b in branches[:10])
-        if len(branches) > 10:
-            branch_list += f"\n  ... and {len(branches) - 10} more"
-
-        if not messagebox.askyesno(
-            "Confirm deletion",
-            f"Delete {len(branches)} remote branch(es) matching '{prefix}*'?\n\n{branch_list}\n\nThis action is irreversible.",
-            parent=self
-        ):
-            return
-
-        # Delete branches
-        deleted = 0
-        errors = []
-        for branch in branches:
-            success, err = delete_remote_branch(branch, remote, cwd=tab.repo_path, git=git)
-            if success:
-                deleted += 1
-                tab.log_msg(f"Deleted {branch}")
-            else:
-                errors.append(f"{branch}: {err}")
-
-        # Report results
-        if errors:
-            messagebox.showwarning(
-                "Partial success",
-                f"Deleted {deleted}/{len(branches)} branches.\n\nErrors:\n" + "\n".join(errors[:5]),
-                parent=self
-            )
-        else:
-            messagebox.showinfo(
-                "Success",
-                f"Deleted {deleted} branch(es).",
-                parent=self
-            )
-
-        # Refresh
-        tab.manual_sync()
 
     def restart_app(self):
         any_sync_locked = any(tab.lock.locked() for tab in self.tabs.values())
