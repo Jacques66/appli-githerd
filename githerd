@@ -1463,10 +1463,17 @@ class App(ctk.CTk):
             if Path(repo_path).exists() and is_git_repo(repo_path, git):
                 self.add_repo(repo_path)
 
-        # Restore last active tab
-        last_tab = self.global_settings.get("last_active_tab", "")
-        if last_tab and last_tab in self.tabs:
-            self.switch_tab(last_tab)
+        # Restore last active tab (delayed to ensure UI is ready)
+        def restore_tab():
+            last_tab = self.global_settings.get("last_active_tab", "")
+            if last_tab and last_tab in self.tabs:
+                self.switch_tab(last_tab)
+            elif self.tabs:
+                # Show first tab if no saved tab
+                first_tab = list(self.tabs.keys())[0]
+                self.switch_tab(first_tab)
+
+        self.after(100, restore_tab)
 
     def save_current_repos(self):
         repos = list(self.tab_paths.values())
@@ -1512,25 +1519,22 @@ class App(ctk.CTk):
             counter += 1
             tab_name = f"{repo_name} ({counter})"
 
-        # Create tab button
+        # Create tab button with proper height
         btn = ctk.CTkButton(
             self.tab_bar,
             text=repo_name,
             fg_color="#333333",
             hover_color="#444444",
             corner_radius=6,
+            height=32,
             command=lambda n=tab_name: self.switch_tab(n)
         )
-        btn.pack(side="left", padx=(0, 5), pady=5)
+        btn.pack(side="left", padx=(0, 8), pady=8)
         self.tab_buttons[tab_name] = btn
 
-        # Create content frame
-        tab_frame = ctk.CTkFrame(self.content_container)
-        self.tab_frames[tab_name] = tab_frame
-
-        # Créer le contenu
-        tab_content = RepoTabContent(tab_frame, repo_path, self, tab_name)
-        tab_content.pack(fill="both", expand=True)
+        # Créer le contenu directement dans le container
+        tab_content = RepoTabContent(self.content_container, repo_path, self, tab_name)
+        self.tab_frames[tab_name] = tab_content  # Store content directly
 
         self.tabs[tab_name] = tab_content
         self.tab_paths[tab_name] = repo_path
@@ -1579,11 +1583,12 @@ class App(ctk.CTk):
                 self.tab_buttons[tab_name].destroy()
                 del self.tab_buttons[tab_name]
 
-            # Remove frame
+            # Remove content (tab_frames points to same object as tabs)
             if tab_name in self.tab_frames:
-                self.tab_frames[tab_name].destroy()
                 del self.tab_frames[tab_name]
 
+            # Destroy the tab content widget
+            tab.destroy()
             del self.tabs[tab_name]
             del self.tab_paths[tab_name]
 
