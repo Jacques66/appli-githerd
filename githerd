@@ -1710,31 +1710,62 @@ class App(ctk.CTk):
 
     def restart_app(self):
         any_sync_locked = any(tab.lock.locked() for tab in self.tabs.values())
-        if any_sync_locked:
-            messagebox.showwarning(
-                "Sync in progress",
-                "Cannot restart: a synchronization is in progress.",
-                parent=self
-            )
+        polling_count = sum(1 for tab in self.tabs.values() if tab.polling)
+
+        if any_sync_locked or polling_count > 0:
+            # Custom dialog with Cancel and Restart buttons
+            dialog = ctk.CTkToplevel(self)
+            dialog.title("Restart")
+            dialog.geometry("400x180")
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.resizable(False, False)
+            dialog.update()
+
+            frame = ctk.CTkFrame(dialog)
+            frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+            if any_sync_locked:
+                msg = "A synchronization is in progress.\n\nRestart will wait for it to finish, then stop polling."
+            else:
+                msg = f"{polling_count} polling(s) active.\n\nRestart will stop all polling."
+
+            ctk.CTkLabel(frame, text=msg, justify="center").pack(pady=20)
+
+            btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+            btn_frame.pack(pady=10)
+
+            def do_restart():
+                dialog.destroy()
+                # Stop all polling
+                for tab in self.tabs.values():
+                    if tab.polling:
+                        tab.polling = False
+                        tab.stop_countdown()
+
+                # Wait for any sync to finish
+                def wait_and_restart():
+                    any_locked = any(tab.lock.locked() for tab in self.tabs.values())
+                    if any_locked:
+                        self.after(500, wait_and_restart)
+                    else:
+                        self.save_current_repos()
+                        python = sys.executable
+                        script = os.path.abspath(__file__)
+                        self.destroy()
+                        os.execl(python, python, script)
+
+                wait_and_restart()
+
+            ctk.CTkButton(btn_frame, text="Cancel", width=100,
+                         command=dialog.destroy).pack(side="left", padx=10)
+            ctk.CTkButton(btn_frame, text="Restart", width=100,
+                         fg_color="#8B0000", hover_color="#CD5C5C",
+                         command=do_restart).pack(side="left", padx=10)
             return
 
-        polling_count = sum(1 for tab in self.tabs.values() if tab.polling)
-        if polling_count > 0:
-            result = messagebox.askyesno(
-                "Polling active",
-                f"{polling_count} polling(s) active.\n\nStop polling and restart?",
-                parent=self
-            )
-            if not result:
-                return
-
-            for tab in self.tabs.values():
-                if tab.polling:
-                    tab.polling = False
-                    tab.stop_countdown()
-
+        # No sync or polling - restart immediately
         self.save_current_repos()
-
         python = sys.executable
         script = os.path.abspath(__file__)
         self.destroy()
