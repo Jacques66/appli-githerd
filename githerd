@@ -1340,8 +1340,6 @@ class App(ctk.CTk):
             width=150
         )
         theme_menu.grid(row=row, column=1, sticky="w", pady=8, padx=(10, 0))
-        ctk.CTkLabel(main_frame, text="(restart required)", text_color="gray").grid(
-            row=row, column=2, sticky="w", padx=5)
         row += 1
 
         # Font zoom
@@ -1363,8 +1361,6 @@ class App(ctk.CTk):
 
         zoom_label = ctk.CTkLabel(zoom_frame, text=f"{zoom_var.get():.1f}x", width=40)
         zoom_label.pack(side="left", padx=(5, 0))
-
-        ctk.CTkLabel(zoom_frame, text="(restart required)", text_color="gray").pack(side="left", padx=5)
 
         def update_zoom_label(val):
             zoom_label.configure(text=f"{float(val):.1f}x")
@@ -1429,28 +1425,28 @@ class App(ctk.CTk):
 
         def save_settings():
             old_theme = self.global_settings.get("color_theme", "blue")
+            old_zoom = self.global_settings.get("font_zoom", 1.0)
             new_theme = theme_var.get()
+            new_zoom = zoom_var.get()
 
             self.global_settings["appearance_mode"] = appearance_var.get()
             self.global_settings["color_theme"] = new_theme
-            self.global_settings["font_zoom"] = zoom_var.get()
+            self.global_settings["font_zoom"] = new_zoom
             self.global_settings["git_binary"] = git_entry.get().strip()
             self.global_settings["auto_start_polling"] = auto_poll_var.get()
             self.global_settings["desktop_notifications"] = notif_var.get()
 
             try:
                 save_global_settings(self.global_settings)
-                if old_theme != new_theme:
-                    messagebox.showinfo("Info",
-                        "Settings saved.\nRestart to apply the new color theme.",
-                        parent=dialog)
-                else:
-                    messagebox.showinfo("Info", "Settings saved.", parent=dialog)
             except Exception as e:
                 messagebox.showerror("Error", f"Unable to save: {e}", parent=dialog)
                 return
 
             dialog.destroy()
+
+            # Rebuild UI if theme or zoom changed
+            if old_theme != new_theme or old_zoom != new_zoom:
+                self.rebuild_ui()
 
         ctk.CTkButton(btn_frame, text="Save", command=save_settings).pack(side="left", padx=5)
         ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left", padx=5)
@@ -1717,6 +1713,105 @@ class App(ctk.CTk):
         if not self.tabs or not self.current_tab:
             return
         self.close_tab(self.current_tab)
+
+    def rebuild_ui(self):
+        """Reconstruit l'interface sans redémarrer le processus."""
+        import tkinter as tk
+        import tkinter.font as tkfont
+
+        # Sauvegarder l'état actuel
+        saved_current_tab = self.current_tab
+        saved_repos = list(self.tab_paths.values())
+        saved_geometry = self.geometry()
+
+        # Arrêter tous les polling
+        for tab in self.tabs.values():
+            if tab.polling:
+                tab.polling = False
+                tab.stop_countdown()
+
+        # Attendre que les syncs soient terminées
+        def do_rebuild():
+            any_locked = any(tab.lock.locked() for tab in self.tabs.values())
+            if any_locked:
+                self.after(200, do_rebuild)
+                return
+
+            # Détruire tous les widgets enfants
+            for widget in self.winfo_children():
+                widget.destroy()
+
+            # Réinitialiser les structures
+            self.tabs = {}
+            self.tab_paths = {}
+            self.tab_buttons = {}
+            self.tab_frames = {}
+            self.current_tab = None
+
+            # Appliquer le nouveau thème
+            apply_theme_settings()
+
+            # Recréer le menu bar
+            font_zoom = self.global_settings.get("font_zoom", 1.0)
+            ctk.set_widget_scaling(font_zoom)
+            ctk.set_window_scaling(font_zoom)
+
+            menu_font_size = int(10 * font_zoom)
+            menu_font = tkfont.Font(family="sans-serif", size=menu_font_size)
+
+            self.menubar = tk.Menu(self, font=menu_font)
+            self.config(menu=self.menubar)
+
+            # File menu
+            file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            self.menubar.add_cascade(label="\u00a0\u00a0\u00a0File\u00a0\u00a0\u00a0", menu=file_menu)
+            file_menu.add_command(label="Add repository...", command=self.add_repo_dialog,
+                                 accelerator="Ctrl+O")
+            file_menu.add_command(label="Stop all polling", command=self.stop_all_polling,
+                                 accelerator="Ctrl+S")
+            file_menu.add_separator()
+            file_menu.add_command(label="Restart", command=self.restart_app,
+                                 accelerator="Ctrl+R")
+            file_menu.add_command(label="Quit", command=self.on_close, accelerator="Ctrl+Q")
+
+            # Repository menu
+            self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            self.menu_font = menu_font
+            self.menubar.add_cascade(label="\u00a0\u00a0\u00a0Repository\u00a0\u00a0\u00a0", menu=self.repo_menu)
+
+            # ? menu
+            help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            self.menubar.add_cascade(label="\u00a0\u00a0\u00a0?\u00a0\u00a0\u00a0", menu=help_menu)
+            help_menu.add_command(label="Settings...", command=self.show_global_settings)
+            help_menu.add_separator()
+            help_menu.add_command(label="Help", command=self.show_help)
+            help_menu.add_command(label="About GitHerd", command=self.show_about)
+
+            # Recréer la tab bar
+            self.tab_bar = ctk.CTkFrame(self, height=40)
+            self.tab_bar.pack(fill="x", padx=10, pady=(10, 0))
+
+            # Container pour le contenu
+            self.content_container = ctk.CTkFrame(self)
+            self.content_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+            # Recharger les repos
+            git = self.global_settings.get("git_binary", "git")
+            for repo_path in saved_repos:
+                if Path(repo_path).exists() and is_git_repo(repo_path, git):
+                    self.add_repo(repo_path)
+
+            # Restaurer l'onglet actif
+            def restore():
+                if saved_current_tab and saved_current_tab in self.tabs:
+                    self.switch_tab(saved_current_tab)
+                elif self.tabs:
+                    first_tab = list(self.tabs.keys())[0]
+                    self.switch_tab(first_tab)
+
+            self.after(100, restore)
+
+        do_rebuild()
 
     def restart_app(self):
         any_sync_locked = any(tab.lock.locked() for tab in self.tabs.values())
