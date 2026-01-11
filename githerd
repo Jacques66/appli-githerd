@@ -436,9 +436,18 @@ class RepoTabContent(ctk.CTkFrame):
         )
         self.countdown_label.pack(side="left", padx=10)
 
-        # BUTTONS
+        # BUTTONS (with log toggle at start)
         self.buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.buttons_frame.pack(fill="x", padx=10, pady=8)
+
+        # Log toggle at the beginning
+        self.btn_toggle_log = ctk.CTkButton(
+            self.buttons_frame,
+            text="▼ Log",
+            width=70,
+            command=self.toggle_log
+        )
+        self.btn_toggle_log.pack(side="left", padx=(0, 10))
 
         self.btn_poll = ctk.CTkButton(
             self.buttons_frame,
@@ -483,24 +492,6 @@ class RepoTabContent(ctk.CTkFrame):
             hover_color="#CD5C5C"
         )
         self.btn_close.pack(side="right", padx=6)
-
-        # LOG SECTION
-        self.log_header = ctk.CTkFrame(self, fg_color="transparent")
-        self.log_header.pack(fill="x", padx=10, pady=(10, 0))
-
-        self.btn_toggle_log = ctk.CTkButton(
-            self.log_header,
-            text="▼",
-            width=30,
-            command=self.toggle_log
-        )
-        self.btn_toggle_log.pack(side="left")
-
-        ctk.CTkLabel(
-            self.log_header,
-            text="Log",
-            font=ctk.CTkFont(size=13, weight="bold")
-        ).pack(side="left", padx=4)
 
         # LOG TEXTBOX
         self.log_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -553,7 +544,7 @@ class RepoTabContent(ctk.CTkFrame):
     def show_config_dialog(self):
         dialog = ctk.CTkToplevel(self.app)
         dialog.title(f"Options — {self.repo_path.name}")
-        dialog.geometry("450x300")
+        dialog.geometry("450x380")
         dialog.transient(self.app)
         dialog.resizable(False, False)
 
@@ -668,10 +659,14 @@ class RepoTabContent(ctk.CTkFrame):
     def toggle_log(self):
         if self.log_visible:
             self.log_frame.pack_forget()
-            self.btn_toggle_log.configure(text="▶")
+            self.btn_toggle_log.configure(text="▶ Log")
+            # Shrink window when log is hidden
+            self.app.geometry("1000x250")
         else:
             self.log_frame.pack(fill="both", expand=True, padx=10, pady=6)
-            self.btn_toggle_log.configure(text="▼")
+            self.btn_toggle_log.configure(text="▼ Log")
+            # Restore window size when log is shown
+            self.app.geometry("1000x750")
         self.log_visible = not self.log_visible
 
     # --------------------------------------------------------
