@@ -1,0 +1,11 @@
+[git]
+binary = "git"
+remote = "origin"
+main_branch = "main"
+branch_prefix = "claude/"
+
+[sync]
+interval_seconds = 10
+
+[ui]
+font_zoom = 1.6
