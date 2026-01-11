@@ -106,8 +106,4 @@ MIT — Copyright (c) 2025 InZeMobile
 
 ## Author
 
-[InZeMobile](https://github.com/Jacques66)
-
-## Author
-
 Jacques Lovi. - [InZeMobile](https://github.com/Jacques66)
