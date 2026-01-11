@@ -113,4 +113,4 @@ MIT — Copyright (c) 2025 InZeMobile
 
 ## Author
 
-Jacques Bhei - [InZeMobile](https://github.com/Jacques66)
+Jacques Lovi. - [InZeMobile](https://github.com/Jacques66)
