@@ -1081,10 +1081,16 @@ class App(tk.Tk):
 
         self.tabs = {}  # repo_path -> RepoTab
         self.global_settings = load_global_settings()
+        self.font_zoom = self.global_settings.get("font_zoom", 1.6)
 
-        # Style
+        # Tailles de police calculées
+        f_ui = int(11 * self.font_zoom)
+        f_menu = int(14 * self.font_zoom)
+        f_tab = int(10 * self.font_zoom)
+
+        # Style global
         style = ttk.Style()
-        style.configure("TNotebook.Tab", padding=[10, 5])
+        style.configure("TNotebook.Tab", padding=[10, 5], font=("Segoe UI", f_tab))
 
         # NOTEBOOK (onglets)
         self.notebook = ttk.Notebook(self)
@@ -1099,18 +1105,18 @@ class App(tk.Tk):
 
         tk.Button(
             bottom_bar, text="➕ Ajouter un repo",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", f_ui),
             command=self.add_repo_dialog
         ).pack(side="left", padx=5)
 
         # Menu hamburger général
         self.main_menu_btn = tk.Menubutton(
-            bottom_bar, text="☰", font=("Segoe UI", 14),
+            bottom_bar, text="☰", font=("Segoe UI", f_menu),
             relief="flat", cursor="hand2"
         )
         self.main_menu_btn.pack(side="left", padx=5)
 
-        self.main_dropdown = tk.Menu(self.main_menu_btn, tearoff=0, font=("Segoe UI", 11))
+        self.main_dropdown = tk.Menu(self.main_menu_btn, tearoff=0, font=("Segoe UI", f_ui))
         self.main_menu_btn["menu"] = self.main_dropdown
 
         self.main_dropdown.add_command(
@@ -1151,9 +1157,11 @@ class App(tk.Tk):
 
     def show_global_settings(self):
         """Affiche le dialogue des paramètres globaux."""
+        f_ui = int(11 * self.font_zoom)
+
         dialog = tk.Toplevel(self)
         dialog.title("Paramètres globaux")
-        dialog.geometry("450x200")
+        dialog.geometry(f"{int(450 * self.font_zoom)}x{int(180 * self.font_zoom)}")
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
@@ -1163,10 +1171,10 @@ class App(tk.Tk):
         main_frame.pack(fill="both", expand=True)
 
         # Git binary
-        ttk.Label(main_frame, text="Git binary:", font=("Segoe UI", 11)).grid(
+        ttk.Label(main_frame, text="Git binary:", font=("Segoe UI", f_ui)).grid(
             row=0, column=0, sticky="w", pady=8)
         git_var = tk.StringVar(value=self.global_settings.get("git_binary", "git"))
-        git_entry = ttk.Entry(main_frame, textvariable=git_var, font=("Segoe UI", 11), width=30)
+        git_entry = ttk.Entry(main_frame, textvariable=git_var, font=("Segoe UI", f_ui), width=30)
         git_entry.grid(row=0, column=1, sticky="ew", pady=8, padx=(10, 5))
 
         def browse_git():
@@ -1177,15 +1185,15 @@ class App(tk.Tk):
             if path:
                 git_var.set(path)
 
-        tk.Button(main_frame, text="📂", command=browse_git).grid(
+        tk.Button(main_frame, text="📂", font=("Segoe UI", f_ui), command=browse_git).grid(
             row=0, column=2, pady=8)
 
         # Font zoom
-        ttk.Label(main_frame, text="Font zoom:", font=("Segoe UI", 11)).grid(
+        ttk.Label(main_frame, text="Font zoom:", font=("Segoe UI", f_ui)).grid(
             row=1, column=0, sticky="w", pady=8)
         zoom_var = tk.DoubleVar(value=self.global_settings.get("font_zoom", 1.6))
         zoom_spin = ttk.Spinbox(main_frame, textvariable=zoom_var, from_=0.5, to=3.0,
-                                increment=0.1, font=("Segoe UI", 11), width=10)
+                                increment=0.1, font=("Segoe UI", f_ui), width=10)
         zoom_spin.grid(row=1, column=1, sticky="w", pady=8, padx=(10, 0))
 
         main_frame.columnconfigure(1, weight=1)
@@ -1211,9 +1219,9 @@ class App(tk.Tk):
 
             dialog.destroy()
 
-        tk.Button(btn_frame, text="Sauvegarder", font=("Segoe UI", 11),
+        tk.Button(btn_frame, text="Sauvegarder", font=("Segoe UI", f_ui),
                  command=save_settings).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Annuler", font=("Segoe UI", 11),
+        tk.Button(btn_frame, text="Annuler", font=("Segoe UI", f_ui),
                  command=dialog.destroy).pack(side="left", padx=5)
 
     # --------------------------------------------------------
@@ -1284,7 +1292,8 @@ class App(tk.Tk):
             index = self.notebook.index(f"@{event.x},{event.y}")
             tab = self.notebook.nametowidget(self.notebook.tabs()[index])
 
-            menu = tk.Menu(self, tearoff=0)
+            f_ui = int(11 * self.font_zoom)
+            menu = tk.Menu(self, tearoff=0, font=("Segoe UI", f_ui))
             menu.add_command(
                 label="❌ Fermer cet onglet",
                 command=lambda: self.close_tab(tab)
@@ -1316,19 +1325,22 @@ class App(tk.Tk):
             self.save_current_repos()
 
     def show_help(self):
+        f_ui = int(11 * self.font_zoom)
+        f_log = int(11 * self.font_zoom)
+
         help_win = tk.Toplevel(self)
         help_win.title("Aide — GitHerd")
-        help_win.geometry("650x600")
+        help_win.geometry(f"{int(650 * self.font_zoom)}x{int(600 * self.font_zoom)}")
         help_win.transient(self)
         help_win.grab_set()
 
-        text = ScrolledText(help_win, font=("Consolas", 11), wrap="word")
+        text = ScrolledText(help_win, font=("Consolas", f_log), wrap="word")
         text.pack(fill="both", expand=True, padx=10, pady=10)
         text.insert("1.0", HELP_TEXT)
         text.configure(state="disabled")
 
         tk.Button(
-            help_win, text="Fermer", font=("Segoe UI", 11),
+            help_win, text="Fermer", font=("Segoe UI", f_ui),
             command=help_win.destroy
         ).pack(pady=10)
 
