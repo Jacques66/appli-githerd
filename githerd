@@ -1181,7 +1181,7 @@ class App(ctk.CTk):
         self.menubar.add_cascade(label="?", menu=help_menu)
         help_menu.add_command(label="Settings...", command=self.show_global_settings)
         help_menu.add_separator()
-        help_menu.add_command(label="About GitHerd", command=self.show_help)
+        help_menu.add_command(label="About GitHerd", command=self.show_about)
 
         # Raccourcis clavier
         self.bind("<Control-o>", lambda e: self.add_repo_dialog())
@@ -1740,19 +1740,67 @@ class App(ctk.CTk):
         self.destroy()
         os.execl(python, python, script)
 
-    def show_help(self):
-        help_win = ctk.CTkToplevel(self)
-        help_win.title("Help — GitHerd")
-        help_win.geometry("700x600")
-        help_win.transient(self)
-        help_win.grab_set()
+    def show_about(self):
+        about_win = ctk.CTkToplevel(self)
+        about_win.title("About GitHerd")
+        about_win.geometry("400x300")
+        about_win.transient(self)
+        about_win.grab_set()
+        about_win.resizable(False, False)
 
-        text = ctk.CTkTextbox(help_win, font=ctk.CTkFont(family="Consolas", size=12))
-        text.pack(fill="both", expand=True, padx=10, pady=10)
-        text.insert("1.0", HELP_TEXT)
-        text.configure(state="disabled")
+        # Wait for window
+        about_win.update()
 
-        ctk.CTkButton(help_win, text="Close", command=help_win.destroy).pack(pady=10)
+        # Main frame
+        frame = ctk.CTkFrame(about_win)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Title
+        ctk.CTkLabel(
+            frame,
+            text="GitHerd",
+            font=ctk.CTkFont(size=28, weight="bold")
+        ).pack(pady=(20, 5))
+
+        # Version
+        ctk.CTkLabel(
+            frame,
+            text="Version 1.0",
+            font=ctk.CTkFont(size=14),
+            text_color="gray"
+        ).pack()
+
+        # Description
+        ctk.CTkLabel(
+            frame,
+            text="Real-time Git branch synchronizer",
+            font=ctk.CTkFont(size=13)
+        ).pack(pady=(15, 5))
+
+        ctk.CTkLabel(
+            frame,
+            text="Keeps multiple Git branches aligned in real-time.\nIdeal for parallel AI coding sessions.",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            justify="center"
+        ).pack()
+
+        # Copyright
+        ctk.CTkLabel(
+            frame,
+            text="© 2026 InZeMobile — Jacques Lovi",
+            font=ctk.CTkFont(size=12)
+        ).pack(pady=(20, 5))
+
+        ctk.CTkLabel(
+            frame,
+            text="All rights reserved",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        ).pack()
+
+        # Close button
+        ctk.CTkButton(about_win, text="Close", command=about_win.destroy, width=100).pack(pady=15)
 
     def on_close(self):
         for tab in self.tabs.values():
