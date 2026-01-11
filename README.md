@@ -69,8 +69,8 @@ githerd
 - Each tab has its own polling, status, and log
 
 **Tab indicators:**
-- 🟢 = Polling active
-- 🔴 = Polling inactive
+- ● = Polling active
+- ○ = Polling inactive
 - `*Name*` = Update detected (click tab to clear)
 
 ### Keyboard shortcuts
@@ -96,7 +96,7 @@ The **Repository** menu changes dynamically based on the currently selected tab:
 
 ### Configuration
 
-#### Global settings (Menu Configuration)
+#### Global settings (Menu Options)
 
 | Setting | Description |
 |---------|-------------|

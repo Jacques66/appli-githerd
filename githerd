@@ -202,15 +202,15 @@ MULTI-REPO :
 - Clic droit sur un onglet pour le fermer
 
 INDICATEURS D'ONGLET :
-- 🟢 = Polling actif
-- 🔴 = Polling inactif
+- ● = Polling actif
+- ○ = Polling inactif
 - *Nom* = Mise à jour détectée (cliquer pour effacer)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CONFIGURATION :
 
-Menu Configuration > Paramètres globaux :
+Menu Options > Paramètres globaux :
 - Git binary : chemin vers l'exécutable git
 - Font zoom : taille de police de l'interface
 
@@ -1215,9 +1215,9 @@ class App(tk.Tk):
         self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=("Segoe UI", f_ui))
         self.menubar.add_cascade(label="Repository", menu=self.repo_menu)
 
-        # Menu Configuration
+        # Menu Options
         config_menu = tk.Menu(self.menubar, tearoff=0, font=("Segoe UI", f_ui))
-        self.menubar.add_cascade(label="Configuration", menu=config_menu)
+        self.menubar.add_cascade(label="Options", menu=config_menu)
         config_menu.add_command(label="Paramètres globaux...", command=self.show_global_settings)
 
         # Menu Aide
@@ -1438,7 +1438,7 @@ class App(tk.Tk):
         repo_name = Path(repo_path).name
         tab.base_tab_name = repo_name  # Nom de base sans marqueur
         tab.has_update = False
-        self.notebook.add(tab, text=f"🔴 {repo_name}")  # Rouge = pas de polling
+        self.notebook.add(tab, text=f"○ {repo_name}")  # ○ = pas de polling
         self.tabs[repo_path] = tab
         self.notebook.select(tab)
         self.after(100, self.update_repo_menu)
@@ -1449,12 +1449,12 @@ class App(tk.Tk):
             self.after(500, tab.toggle_polling)
 
     def update_tab_name(self, tab):
-        """Met à jour le nom de l'onglet avec le point coloré et le gras si update."""
+        """Met à jour le nom de l'onglet avec le point et le gras si update."""
         if not hasattr(tab, 'base_tab_name'):
             return
 
-        # Point coloré selon polling
-        dot = "🟢" if tab.polling else "🔴"
+        # Point selon polling: ● = actif, ○ = inactif
+        dot = "●" if tab.polling else "○"
         name = tab.base_tab_name
 
         # Gras si mise à jour détectée (simulé avec *)
