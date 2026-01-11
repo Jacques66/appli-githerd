@@ -1170,7 +1170,7 @@ class App(ctk.CTk):
 
         # File menu
         file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
-        self.menubar.add_cascade(label="     File     ", menu=file_menu)
+        self.menubar.add_cascade(label="\u00a0\u00a0\u00a0\u00a0\u00a0File\u00a0\u00a0\u00a0\u00a0\u00a0", menu=file_menu)
         file_menu.add_command(label="Add repository...", command=self.add_repo_dialog,
                              accelerator="Ctrl+O")
         file_menu.add_command(label="Stop all polling", command=self.stop_all_polling,
@@ -1183,11 +1183,11 @@ class App(ctk.CTk):
         # Repository menu (dynamically updated)
         self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
         self.menu_font = menu_font  # Save for update_repo_menu
-        self.menubar.add_cascade(label="     Repository     ", menu=self.repo_menu)
+        self.menubar.add_cascade(label="\u00a0\u00a0\u00a0\u00a0\u00a0Repository\u00a0\u00a0\u00a0\u00a0\u00a0", menu=self.repo_menu)
 
         # ? menu (Options + Help)
         help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
-        self.menubar.add_cascade(label="     ?     ", menu=help_menu)
+        self.menubar.add_cascade(label="\u00a0\u00a0\u00a0\u00a0\u00a0?\u00a0\u00a0\u00a0\u00a0\u00a0", menu=help_menu)
         help_menu.add_command(label="Settings...", command=self.show_global_settings)
         help_menu.add_separator()
         help_menu.add_command(label="Help", command=self.show_help)
