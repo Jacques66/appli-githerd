@@ -6,12 +6,14 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 
 ## Features
 
-- 🔄 **Real-time polling** — Configurable interval (default 10s)
+- 🔄 **Real-time polling** — Configurable interval (default 60s)
 - ⚡ **Auto fast-forward** — Single branch ahead? Sync automatically
 - 🔀 **Smart merge detection** — Multiple branches? Check for disjoint files
 - 🔔 **Sound notification** — Know instantly when commits arrive
 - 🗑 **Branch cleanup** — Delete branches from the UI
 - 📌 **Always on top** — Never lose sight of your sync status
+- 📂 **Multi-repo support** — Manage multiple repositories in tabs
+- 💾 **Session persistence** — Repos are remembered between sessions
 
 ## How it works
 
@@ -35,26 +37,39 @@ git clone https://github.com/Jacques66/GitHerd.git
 
 ## Usage
 
-1. Copy `githerd-template.toml` to your target Git project as `githerd.toml`:
-   ```bash
-   cp /path/to/GitHerd/githerd-template.toml /path/to/your-project/githerd.toml
-   ```
-2. Edit `githerd.toml` to match your project settings (branch prefix, etc.)
-3. Run GitHerd **from your project directory**:
-   ```bash
-   cd /path/to/your-project
-   python /path/to/GitHerd/githerd.py
-   ```
+Simply run GitHerd from anywhere:
+```bash
+python /path/to/GitHerd/githerd.py
+```
 
 Or add GitHerd to your PATH and run:
 ```bash
-cd your-project
 githerd
 ```
 
+### Adding repositories
+
+1. Click **"➕ Ajouter un repo"** to open the folder selector
+2. Select a Git repository folder
+3. A new tab opens with that repository
+
+### Managing tabs
+
+- **Right-click** on a tab to close it
+- Repositories are saved automatically and restored on next launch
+- Each tab has its own polling, status, and log
+
+### Per-repo configuration (optional)
+
+For custom settings, copy `githerd-template.toml` to your project as `githerd.toml`:
+```bash
+cp /path/to/GitHerd/githerd-template.toml /path/to/your-project/githerd.toml
+```
+
+If no `githerd.toml` exists in a repo, default settings are used.
+
 ## Configuration
 
-Copy `githerd-template.toml` to your project root as `githerd.toml` and customize:
 ```toml
 [git]
 binary = "git"
@@ -63,7 +78,7 @@ main_branch = "main"
 branch_prefix = "claude/"
 
 [sync]
-interval_seconds = 10
+interval_seconds = 60
 
 [ui]
 font_zoom = 1.6
@@ -79,6 +94,10 @@ font_zoom = 1.6
 | `git` | `branch_prefix` | `claude/` | Prefix of branches to track |
 | `sync` | `interval_seconds` | `60` | Polling interval in seconds |
 | `ui` | `font_zoom` | `1.6` | UI font scale factor |
+
+### Persistence
+
+Open repositories are saved to `~/.config/githerd/repos.json` and automatically restored on startup.
 
 ## Requirements
 
