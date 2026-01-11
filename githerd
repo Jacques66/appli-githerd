@@ -1716,15 +1716,35 @@ class App(tk.Tk):
             ))
 
     def restart_app(self):
-        """Redémarre l'application si aucune action n'est active."""
-        if self.is_any_action_active():
+        """Redémarre l'application, avec confirmation si polling en cours."""
+        # Vérifier si une sync est en cours (lock)
+        any_sync_locked = any(tab.lock.locked() for tab in self.tabs.values())
+        if any_sync_locked:
             messagebox.showwarning(
-                "Action en cours",
-                "Impossible de redémarrer : une action est en cours.\n"
-                "Arrêtez le polling et attendez la fin des syncs.",
+                "Sync en cours",
+                "Impossible de redémarrer : une synchronisation est en cours.\n"
+                "Attendez la fin de la sync.",
                 parent=self
             )
             return
+
+        # Vérifier si des polling sont actifs
+        polling_count = sum(1 for tab in self.tabs.values() if tab.polling)
+        if polling_count > 0:
+            result = messagebox.askyesno(
+                "Polling en cours",
+                f"{polling_count} polling(s) actif(s).\n\n"
+                "Arrêter les polling et redémarrer ?",
+                parent=self
+            )
+            if not result:
+                return  # Cancel
+
+            # Arrêter tous les polling silencieusement
+            for tab in self.tabs.values():
+                if tab.polling:
+                    tab.polling = False
+                    tab.stop_countdown()
 
         # Sauvegarder l'état
         self.save_current_repos()
