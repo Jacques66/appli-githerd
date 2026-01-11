@@ -200,8 +200,11 @@ MULTI-REPO :
 - Chaque onglet gère un dépôt indépendamment
 - Les repos sont sauvegardés entre les sessions
 - Clic droit sur un onglet pour le fermer
-- Un marqueur ● apparaît sur l'onglet si une
-  mise à jour est détectée pendant le polling
+
+INDICATEURS D'ONGLET :
+- 🟢 = Polling actif
+- 🔴 = Polling inactif
+- *Nom* = Mise à jour détectée (cliquer pour effacer)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -211,7 +214,7 @@ Menu Configuration > Paramètres globaux :
 - Git binary : chemin vers l'exécutable git
 - Font zoom : taille de police de l'interface
 
-Menu Repo > Configuration :
+Menu Repository > Configuration :
 - Remote, Main branch, Branch prefix, Interval
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -219,6 +222,7 @@ Menu Repo > Configuration :
 RACCOURCIS CLAVIER :
 
 - Ctrl+O : Ajouter un repo
+- Ctrl+S : Stopper tous les polling
 - Ctrl+R : Redémarrer (si aucune action en cours)
 - Ctrl+Q : Quitter
 - Ctrl+Tab : Onglet suivant
@@ -1149,6 +1153,7 @@ class RepoTab(ttk.Frame):
             threading.Thread(target=self.polling_loop, daemon=True).start()
         else:
             self.stop_countdown()
+        self.app.update_tab_name(self)
         self.app.update_title()
         self.app.update_repo_menu()
 
@@ -1199,14 +1204,16 @@ class App(tk.Tk):
         self.menubar.add_cascade(label="Fichier", menu=file_menu)
         file_menu.add_command(label="Ajouter un repo...", command=self.add_repo_dialog,
                              accelerator="Ctrl+O")
+        file_menu.add_command(label="Stopper tous les polling", command=self.stop_all_polling,
+                             accelerator="Ctrl+S")
         file_menu.add_separator()
         file_menu.add_command(label="Redémarrer", command=self.restart_app,
                              accelerator="Ctrl+R")
         file_menu.add_command(label="Quitter", command=self.on_close, accelerator="Ctrl+Q")
 
-        # Menu Repo (dynamique selon l'onglet actif)
+        # Menu Repository (dynamique selon l'onglet actif)
         self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=("Segoe UI", f_ui))
-        self.menubar.add_cascade(label="Repo", menu=self.repo_menu)
+        self.menubar.add_cascade(label="Repository", menu=self.repo_menu)
 
         # Menu Configuration
         config_menu = tk.Menu(self.menubar, tearoff=0, font=("Segoe UI", f_ui))
@@ -1220,6 +1227,7 @@ class App(tk.Tk):
 
         # Raccourcis clavier
         self.bind("<Control-o>", lambda e: self.add_repo_dialog())
+        self.bind("<Control-s>", lambda e: self.stop_all_polling())
         self.bind("<Control-r>", lambda e: self.restart_app())
         self.bind("<Control-q>", lambda e: self.on_close())
         self.bind("<Control-Tab>", lambda e: self.next_tab())
@@ -1430,7 +1438,7 @@ class App(tk.Tk):
         repo_name = Path(repo_path).name
         tab.base_tab_name = repo_name  # Nom de base sans marqueur
         tab.has_update = False
-        self.notebook.add(tab, text=repo_name)
+        self.notebook.add(tab, text=f"🔴 {repo_name}")  # Rouge = pas de polling
         self.tabs[repo_path] = tab
         self.notebook.select(tab)
         self.after(100, self.update_repo_menu)
@@ -1440,17 +1448,32 @@ class App(tk.Tk):
         if self.global_settings.get("auto_start_polling", False):
             self.after(500, tab.toggle_polling)
 
+    def update_tab_name(self, tab):
+        """Met à jour le nom de l'onglet avec le point coloré et le gras si update."""
+        if not hasattr(tab, 'base_tab_name'):
+            return
+
+        # Point coloré selon polling
+        dot = "🟢" if tab.polling else "🔴"
+        name = tab.base_tab_name
+
+        # Gras si mise à jour détectée (simulé avec *)
+        if tab.has_update:
+            self.notebook.tab(tab, text=f"{dot} *{name}*")
+        else:
+            self.notebook.tab(tab, text=f"{dot} {name}")
+
     def mark_tab_updated(self, tab):
         """Ajoute un marqueur à l'onglet pour indiquer une mise à jour."""
         if hasattr(tab, 'base_tab_name') and not tab.has_update:
             tab.has_update = True
-            self.notebook.tab(tab, text=f"● {tab.base_tab_name}")
+            self.update_tab_name(tab)
 
     def clear_tab_marker(self, tab):
         """Efface le marqueur de mise à jour de l'onglet."""
         if hasattr(tab, 'base_tab_name') and tab.has_update:
             tab.has_update = False
-            self.notebook.tab(tab, text=tab.base_tab_name)
+            self.update_tab_name(tab)
 
     def on_tab_changed(self, event):
         """Appelé quand l'utilisateur change d'onglet."""
@@ -1618,6 +1641,27 @@ class App(tk.Tk):
             if tab.lock.locked():
                 return True
         return False
+
+    def stop_all_polling(self):
+        """Arrête le polling sur tous les onglets."""
+        stopped = 0
+        for tab in self.tabs.values():
+            if tab.polling:
+                tab.polling = False
+                tab.stop_countdown()
+                tab.btn_poll.config(text="▶ Start polling")
+                self.update_tab_name(tab)
+                stopped += 1
+
+        self.update_title()
+        self.update_repo_menu()
+
+        if stopped > 0:
+            self.after(100, lambda: messagebox.showinfo(
+                "Polling arrêté",
+                f"{stopped} polling(s) arrêté(s).\nLes syncs en cours se termineront.",
+                parent=self
+            ))
 
     def restart_app(self):
         """Redémarre l'application si aucune action n'est active."""

@@ -67,22 +67,27 @@ githerd
 - **Right-click** on a tab to close it
 - Repositories are saved automatically and restored on next launch
 - Each tab has its own polling, status, and log
-- A **● marker** appears on tabs with detected updates (disappears when you click the tab)
+
+**Tab indicators:**
+- 🟢 = Polling active
+- 🔴 = Polling inactive
+- `*Name*` = Update detected (click tab to clear)
 
 ### Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+O` | Add a repository |
+| `Ctrl+S` | Stop all polling |
 | `Ctrl+R` | Restart (if no action is active) |
 | `Ctrl+Q` | Quit |
 | `Ctrl+Tab` | Next tab |
 | `Ctrl+Shift+Tab` | Previous tab |
 | `Ctrl+M` | Toggle compact mode |
 
-### Menu Repo
+### Menu Repository
 
-The **Repo** menu changes dynamically based on the currently selected tab:
+The **Repository** menu changes dynamically based on the currently selected tab:
 - **Configuration** — Edit repo settings
 - **Sync now / Polling** — Control sync operations
 - **Delete branches** — Remove tracked branches
@@ -103,7 +108,7 @@ The **Repo** menu changes dynamically based on the currently selected tab:
 
 Stored in `~/.config/githerd/settings.json`
 
-#### Per-repo settings (Menu Repo > Configuration)
+#### Per-repo settings (Menu Repository > Configuration)
 
 | Setting | Description |
 |---------|-------------|
