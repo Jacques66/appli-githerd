@@ -1172,11 +1172,26 @@ class App(ctk.CTk):
         menu_font_size = int(10 * font_zoom)
         menu_font = tkfont.Font(family="sans-serif", size=menu_font_size)
 
-        self.menubar = tk.Menu(self, font=menu_font)
+        # Couleurs selon le mode d'apparence
+        appearance = self.global_settings.get("appearance_mode", "dark")
+        if appearance == "dark" or (appearance == "system" and ctk.get_appearance_mode() == "Dark"):
+            menu_bg = "#2b2b2b"
+            menu_fg = "#ffffff"
+            menu_active_bg = "#404040"
+            menu_active_fg = "#ffffff"
+        else:
+            menu_bg = "#f0f0f0"
+            menu_fg = "#000000"
+            menu_active_bg = "#0078d4"
+            menu_active_fg = "#ffffff"
+
+        self.menubar = tk.Menu(self, font=menu_font, bg=menu_bg, fg=menu_fg,
+                               activebackground=menu_active_bg, activeforeground=menu_active_fg)
         self.config(menu=self.menubar)
 
         # File menu
-        file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+        file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                           activebackground=menu_active_bg, activeforeground=menu_active_fg)
         self.menubar.add_cascade(label="\u00a0\u00a0\u00a0File\u00a0\u00a0\u00a0", menu=file_menu)
         file_menu.add_command(label="Add repository...", command=self.add_repo_dialog,
                              accelerator="Ctrl+O")
@@ -1188,12 +1203,15 @@ class App(ctk.CTk):
         file_menu.add_command(label="Quit", command=self.on_close, accelerator="Ctrl+Q")
 
         # Repository menu (dynamically updated)
-        self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+        self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                                activebackground=menu_active_bg, activeforeground=menu_active_fg)
         self.menu_font = menu_font  # Save for update_repo_menu
+        self.menu_colors = {"bg": menu_bg, "fg": menu_fg, "active_bg": menu_active_bg, "active_fg": menu_active_fg}
         self.menubar.add_cascade(label="\u00a0\u00a0\u00a0Repository\u00a0\u00a0\u00a0", menu=self.repo_menu)
 
         # ? menu (Options + Help)
-        help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+        help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                           activebackground=menu_active_bg, activeforeground=menu_active_fg)
         self.menubar.add_cascade(label="\u00a0\u00a0\u00a0?\u00a0\u00a0\u00a0", menu=help_menu)
         help_menu.add_command(label="Settings...", command=self.show_global_settings)
         help_menu.add_separator()
@@ -1798,11 +1816,26 @@ class App(ctk.CTk):
             menu_font_size = int(10 * font_zoom)
             menu_font = tkfont.Font(family="sans-serif", size=menu_font_size)
 
-            self.menubar = tk.Menu(self, font=menu_font)
+            # Couleurs selon le mode d'apparence
+            appearance = self.global_settings.get("appearance_mode", "dark")
+            if appearance == "dark" or (appearance == "system" and ctk.get_appearance_mode() == "Dark"):
+                menu_bg = "#2b2b2b"
+                menu_fg = "#ffffff"
+                menu_active_bg = "#404040"
+                menu_active_fg = "#ffffff"
+            else:
+                menu_bg = "#f0f0f0"
+                menu_fg = "#000000"
+                menu_active_bg = "#0078d4"
+                menu_active_fg = "#ffffff"
+
+            self.menubar = tk.Menu(self, font=menu_font, bg=menu_bg, fg=menu_fg,
+                                   activebackground=menu_active_bg, activeforeground=menu_active_fg)
             self.config(menu=self.menubar)
 
             # File menu
-            file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            file_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                               activebackground=menu_active_bg, activeforeground=menu_active_fg)
             self.menubar.add_cascade(label="\u00a0\u00a0\u00a0File\u00a0\u00a0\u00a0", menu=file_menu)
             file_menu.add_command(label="Add repository...", command=self.add_repo_dialog,
                                  accelerator="Ctrl+O")
@@ -1814,12 +1847,15 @@ class App(ctk.CTk):
             file_menu.add_command(label="Quit", command=self.on_close, accelerator="Ctrl+Q")
 
             # Repository menu
-            self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            self.repo_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                                    activebackground=menu_active_bg, activeforeground=menu_active_fg)
             self.menu_font = menu_font
+            self.menu_colors = {"bg": menu_bg, "fg": menu_fg, "active_bg": menu_active_bg, "active_fg": menu_active_fg}
             self.menubar.add_cascade(label="\u00a0\u00a0\u00a0Repository\u00a0\u00a0\u00a0", menu=self.repo_menu)
 
             # ? menu
-            help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font)
+            help_menu = tk.Menu(self.menubar, tearoff=0, font=menu_font, bg=menu_bg, fg=menu_fg,
+                               activebackground=menu_active_bg, activeforeground=menu_active_fg)
             self.menubar.add_cascade(label="\u00a0\u00a0\u00a0?\u00a0\u00a0\u00a0", menu=help_menu)
             help_menu.add_command(label="Settings...", command=self.show_global_settings)
             help_menu.add_separator()
