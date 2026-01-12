@@ -1242,6 +1242,16 @@ class App(ctk.CTk):
         else:
             self.geometry("710x750")
 
+        # Restaurer la position de la fenêtre si sauvegardée (après restart)
+        saved_x = self.global_settings.get("window_x")
+        saved_y = self.global_settings.get("window_y")
+        if saved_x is not None and saved_y is not None:
+            self.geometry(f"+{saved_x}+{saved_y}")
+            # Nettoyer les valeurs après utilisation (seulement pour restart)
+            del self.global_settings["window_x"]
+            del self.global_settings["window_y"]
+            save_global_settings(self.global_settings)
+
         # MENU BAR
         import tkinter as tk
         import tkinter.font as tkfont
@@ -1696,6 +1706,23 @@ class App(ctk.CTk):
         repos = list(self.tab_paths.values())
         save_repos(repos)
 
+    def save_window_state(self):
+        """Sauvegarde la position et l'état de la fenêtre pour le restart."""
+        import re
+        self.update_idletasks()
+        geom = self.geometry()
+        match = re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geom)
+        if match:
+            self.global_settings["window_x"] = int(match.group(3))
+            self.global_settings["window_y"] = int(match.group(4))
+
+        # Sauvegarder l'état collapsed (basé sur le tab actif)
+        if self.current_tab and self.current_tab in self.tabs:
+            current_tab_obj = self.tabs[self.current_tab]
+            self.global_settings["start_collapsed"] = not current_tab_obj.log_visible
+
+        save_global_settings(self.global_settings)
+
     def add_repo_dialog(self):
         path = filedialog.askdirectory(
             title="Select a Git repository",
@@ -2139,6 +2166,7 @@ class App(ctk.CTk):
                     if any_locked:
                         self.after(500, wait_and_restart)
                     else:
+                        self.save_window_state()
                         self.save_current_repos()
                         python = sys.executable
                         script = os.path.abspath(__file__)
@@ -2155,6 +2183,7 @@ class App(ctk.CTk):
             return
 
         # No sync or polling - restart immediately
+        self.save_window_state()
         self.save_current_repos()
         python = sys.executable
         script = os.path.abspath(__file__)
