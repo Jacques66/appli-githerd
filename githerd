@@ -394,14 +394,14 @@ class TabButton(tk.Frame):
 
     L'indicateur est dessiné à gauche du texte centré,
     sans décaler le texte lui-même.
-    Utilise tk.Frame pour éviter les problèmes avec CTkFrame.
+    Coins arrondis dessinés sur le canvas.
     """
 
     def __init__(self, master, text, command=None, **kwargs):
         # Extraire les paramètres spécifiques
         self.fg_color = kwargs.pop("fg_color", "#333333")
         self.hover_color = kwargs.pop("hover_color", "#444444")
-        kwargs.pop("corner_radius", None)  # Ignoré
+        self.corner_radius = kwargs.pop("corner_radius", 6)
         self.btn_height = kwargs.pop("height", 32)
 
         self.text = text
@@ -413,23 +413,33 @@ class TabButton(tk.Frame):
         self._border_width = 0
         self._border_color = None
 
+        # Obtenir le font_zoom depuis les settings globaux
+        self.font_zoom = load_global_settings().get("font_zoom", 1.0)
+        self.base_font_size = 13
+
         # Calculer la largeur: texte + espace pour indicateur + padding
-        font = ctk.CTkFont(size=13)
+        font = self._get_font()
         text_width = font.measure(text)
         indicator_space = font.measure("⭯") + self.indicator_margin
         self.btn_width = text_width + indicator_space + 24  # 24 = padding gauche/droite
 
-        # Initialiser tk.Frame
-        super().__init__(master, bg=self.fg_color, height=self.btn_height, width=self.btn_width)
+        # Couleur de fond du parent (pour les coins transparents)
+        try:
+            self.parent_bg = master.cget("bg")
+        except:
+            self.parent_bg = "#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#f0f0f0"
+
+        # Initialiser tk.Frame avec la couleur du parent (coins transparents)
+        super().__init__(master, bg=self.parent_bg, height=self.btn_height, width=self.btn_width)
 
         # Empêcher le redimensionnement automatique
         self.pack_propagate(False)
 
-        # Canvas pour dessiner le texte et l'indicateur
+        # Canvas pour dessiner le bouton arrondi, texte et indicateur
         self.canvas = tk.Canvas(
             self,
             highlightthickness=0,
-            bg=self.fg_color,
+            bg=self.parent_bg,
             height=self.btn_height,
             width=self.btn_width
         )
@@ -444,8 +454,28 @@ class TabButton(tk.Frame):
         self.after(10, self._draw)
 
     def _get_font(self):
-        """Retourne la police à utiliser."""
-        return ctk.CTkFont(size=13)
+        """Retourne la police avec le zoom appliqué."""
+        size = int(self.base_font_size * self.font_zoom)
+        return ctk.CTkFont(size=size)
+
+    def _draw_rounded_rect(self, x1, y1, x2, y2, radius, fill, outline=""):
+        """Dessine un rectangle aux coins arrondis."""
+        # Points pour le polygone avec coins arrondis
+        points = [
+            x1 + radius, y1,
+            x2 - radius, y1,
+            x2, y1,
+            x2, y1 + radius,
+            x2, y2 - radius,
+            x2, y2,
+            x2 - radius, y2,
+            x1 + radius, y2,
+            x1, y2,
+            x1, y2 - radius,
+            x1, y1 + radius,
+            x1, y1,
+        ]
+        return self.canvas.create_polygon(points, fill=fill, outline=outline, smooth=True)
 
     def _on_click(self, event=None):
         """Gère le clic."""
@@ -455,17 +485,15 @@ class TabButton(tk.Frame):
     def _on_enter(self, event=None):
         """Survol - changer la couleur."""
         self._hover = True
-        self.canvas.configure(bg=self.hover_color)
         self._draw()
 
     def _on_leave(self, event=None):
         """Fin survol - restaurer la couleur."""
         self._hover = False
-        self.canvas.configure(bg=self.fg_color)
         self._draw()
 
     def _draw(self):
-        """Dessine le texte centré et l'indicateur à gauche."""
+        """Dessine le bouton arrondi, le texte centré et l'indicateur."""
         self.canvas.delete("all")
 
         width = self.canvas.winfo_width()
@@ -473,6 +501,12 @@ class TabButton(tk.Frame):
 
         if width <= 1 or height <= 1:
             return
+
+        # Couleur de fond du bouton
+        bg_color = self.hover_color if self._hover else self.fg_color
+
+        # Dessiner le rectangle arrondi (fond du bouton)
+        self._draw_rounded_rect(1, 1, width - 1, height - 1, self.corner_radius, fill=bg_color)
 
         # Couleur du texte
         text_color = "#ffffff" if ctk.get_appearance_mode() == "Dark" else "#000000"
@@ -525,9 +559,6 @@ class TabButton(tk.Frame):
             self.text = kwargs.pop("text")
         if "fg_color" in kwargs:
             self.fg_color = kwargs.pop("fg_color")
-            if not self._hover:
-                self.canvas.configure(bg=self.fg_color)
-                self.config(bg=self.fg_color)
         if "hover_color" in kwargs:
             self.hover_color = kwargs.pop("hover_color")
         if "border_width" in kwargs:
