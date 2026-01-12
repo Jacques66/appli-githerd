@@ -1772,7 +1772,7 @@ class App(ctk.CTk):
     def show_global_settings(self):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Settings")
-        dialog.geometry("500x610")
+        dialog.geometry("500x635")
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
