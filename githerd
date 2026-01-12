@@ -548,9 +548,7 @@ class RepoTabContent(ctk.CTkFrame):
         dialog.geometry("450x380")
         dialog.transient(self.app)
         dialog.resizable(False, False)
-
-        # Wait for window to be created
-        dialog.update()
+        self.app.ensure_dialog_on_screen(dialog)
 
         # Main frame with internal padding
         main_frame = ctk.CTkFrame(dialog)
@@ -1270,6 +1268,39 @@ class App(ctk.CTk):
         except FileNotFoundError:
             pass
 
+    def ensure_dialog_on_screen(self, dialog):
+        """S'assure que le dialogue est entièrement visible à l'écran."""
+        dialog.update_idletasks()
+
+        # Dimensions du dialogue
+        dlg_width = dialog.winfo_width()
+        dlg_height = dialog.winfo_height()
+
+        # Dimensions de l'écran
+        screen_width = dialog.winfo_screenwidth()
+        screen_height = dialog.winfo_screenheight()
+
+        # Position de la fenêtre principale
+        main_x = self.winfo_x()
+        main_y = self.winfo_y()
+        main_width = self.winfo_width()
+
+        # Positionner près de la fenêtre principale
+        x = main_x + (main_width - dlg_width) // 2
+        y = main_y + 50
+
+        # Ajuster si hors écran
+        if x + dlg_width > screen_width:
+            x = screen_width - dlg_width - 10
+        if x < 0:
+            x = 10
+        if y + dlg_height > screen_height:
+            y = screen_height - dlg_height - 50
+        if y < 0:
+            y = 10
+
+        dialog.geometry(f"+{x}+{y}")
+
     # --------------------------------------------------------
     # TAB COLOR MANAGEMENT
     # --------------------------------------------------------
@@ -1367,6 +1398,7 @@ class App(ctk.CTk):
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
+        self.ensure_dialog_on_screen(dialog)
 
         main_frame = ctk.CTkFrame(dialog)
         main_frame.pack(fill="both", expand=True, padx=15, pady=15)
@@ -1942,7 +1974,7 @@ class App(ctk.CTk):
             dialog.transient(self)
             dialog.grab_set()
             dialog.resizable(False, False)
-            dialog.update()
+            self.ensure_dialog_on_screen(dialog)
 
             frame = ctk.CTkFrame(dialog)
             frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -2000,9 +2032,7 @@ class App(ctk.CTk):
         about_win.transient(self)
         about_win.grab_set()
         about_win.resizable(False, False)
-
-        # Wait for window
-        about_win.update()
+        self.ensure_dialog_on_screen(about_win)
 
         # Main frame
         frame = ctk.CTkFrame(about_win)
@@ -2061,6 +2091,7 @@ class App(ctk.CTk):
         help_win.geometry("700x600")
         help_win.transient(self)
         help_win.grab_set()
+        self.ensure_dialog_on_screen(help_win)
 
         text = ctk.CTkTextbox(help_win, font=ctk.CTkFont(family="Consolas", size=12))
         text.pack(fill="both", expand=True, padx=10, pady=10)
