@@ -472,15 +472,51 @@ class TabButton(tk.Frame):
 
     def _draw_rounded_rect(self, x1, y1, x2, y2, radius, fill, outline=""):
         """Dessine un rectangle aux coins arrondis avec des arcs."""
-        r = radius
-        # Rectangles centraux
-        self.canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
-        self.canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline="")
-        # Coins arrondis (arcs)
-        self.canvas.create_oval(x1, y1, x1 + 2*r, y1 + 2*r, fill=fill, outline="")  # top-left
-        self.canvas.create_oval(x2 - 2*r, y1, x2, y1 + 2*r, fill=fill, outline="")  # top-right
-        self.canvas.create_oval(x1, y2 - 2*r, x1 + 2*r, y2, fill=fill, outline="")  # bottom-left
-        self.canvas.create_oval(x2 - 2*r, y2 - 2*r, x2, y2, fill=fill, outline="")  # bottom-right
+        r = min(radius, (x2-x1)//2, (y2-y1)//2)  # Limiter le rayon
+        if r < 2:
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline)
+            return
+
+        d = 2 * r  # diamètre
+
+        # Rectangle central horizontal
+        self.canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="", width=0)
+        # Rectangle central vertical
+        self.canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline="", width=0)
+
+        # Coins arrondis avec create_arc (style=PIESLICE pour remplir)
+        # Coin haut-gauche
+        self.canvas.create_arc(x1, y1, x1 + d, y1 + d, start=90, extent=90, fill=fill, outline="", style="pieslice")
+        # Coin haut-droit
+        self.canvas.create_arc(x2 - d, y1, x2, y1 + d, start=0, extent=90, fill=fill, outline="", style="pieslice")
+        # Coin bas-droit
+        self.canvas.create_arc(x2 - d, y2 - d, x2, y2, start=270, extent=90, fill=fill, outline="", style="pieslice")
+        # Coin bas-gauche
+        self.canvas.create_arc(x1, y2 - d, x1 + d, y2, start=180, extent=90, fill=fill, outline="", style="pieslice")
+
+    def _draw_rounded_border(self, x1, y1, x2, y2, radius, color, width):
+        """Dessine une bordure arrondie (outline seulement)."""
+        r = min(radius, (x2-x1)//2, (y2-y1)//2)
+        if r < 2:
+            self.canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=width)
+            return
+
+        # Lignes droites
+        # Haut
+        self.canvas.create_line(x1 + r, y1, x2 - r, y1, fill=color, width=width)
+        # Bas
+        self.canvas.create_line(x1 + r, y2, x2 - r, y2, fill=color, width=width)
+        # Gauche
+        self.canvas.create_line(x1, y1 + r, x1, y2 - r, fill=color, width=width)
+        # Droite
+        self.canvas.create_line(x2, y1 + r, x2, y2 - r, fill=color, width=width)
+
+        d = 2 * r
+        # Coins avec arcs (style=ARC pour juste le contour)
+        self.canvas.create_arc(x1, y1, x1 + d, y1 + d, start=90, extent=90, outline=color, width=width, style="arc")
+        self.canvas.create_arc(x2 - d, y1, x2, y1 + d, start=0, extent=90, outline=color, width=width, style="arc")
+        self.canvas.create_arc(x2 - d, y2 - d, x2, y2, start=270, extent=90, outline=color, width=width, style="arc")
+        self.canvas.create_arc(x1, y2 - d, x1 + d, y2, start=180, extent=90, outline=color, width=width, style="arc")
 
     def _on_click(self, event=None):
         """Gère le clic."""
@@ -550,13 +586,9 @@ class TabButton(tk.Frame):
                 anchor="center"
             )
 
-        # Dessiner la bordure si active
+        # Dessiner la bordure arrondie si active
         if self._border_width > 0 and self._border_color:
-            self.canvas.create_rectangle(
-                1, 1, width - 1, height - 1,
-                outline=self._border_color,
-                width=self._border_width
-            )
+            self._draw_rounded_border(1, 1, width - 1, height - 1, self.corner_radius, self._border_color, self._border_width)
 
     def configure(self, **kwargs):
         """Configure le bouton."""
@@ -1674,8 +1706,8 @@ class App(ctk.CTk):
             fg_color = "#8b2020"  # Dark red
             hover_color = "#ab3030"
         else:
-            fg_color = "#333333"  # Default gray
-            hover_color = "#444444"
+            fg_color = "#3d3d3d"  # Default gray (5% lighter for dark mode)
+            hover_color = "#4a4a4a"
 
         # Update button colors
         btn.configure(fg_color=fg_color, hover_color=hover_color)
@@ -1941,7 +1973,7 @@ class App(ctk.CTk):
         git = self.global_settings.get("git_binary", "git")
         for repo_path in repos:
             if Path(repo_path).exists() and is_git_repo(repo_path, git):
-                self.add_repo(repo_path)
+                self.add_repo(repo_path, switch_to=False)  # Ne pas switcher pendant le chargement
 
         # Restore last active tab (delayed to ensure UI is ready)
         def restore_tab():
@@ -2006,7 +2038,7 @@ class App(ctk.CTk):
             self.add_repo(path)
             self.save_current_repos()
 
-    def add_repo(self, repo_path):
+    def add_repo(self, repo_path, switch_to=True):
         repo_name = Path(repo_path).name
 
         # Gérer les noms en double
@@ -2020,9 +2052,9 @@ class App(ctk.CTk):
         btn = TabButton(
             self.tab_bar,
             text=repo_name,
-            fg_color="#333333",
-            hover_color="#444444",
-            corner_radius=6,
+            fg_color="#3d3d3d",  # Légèrement plus clair en dark mode
+            hover_color="#4a4a4a",
+            corner_radius=8,
             height=32,
             command=lambda n=tab_name: self.on_tab_click(n)
         )
@@ -2038,8 +2070,9 @@ class App(ctk.CTk):
         self.tabs[tab_name] = tab_content
         self.tab_paths[tab_name] = repo_path
 
-        # Switch to new tab
-        self.switch_tab(tab_name)
+        # Switch to new tab seulement si demandé
+        if switch_to:
+            self.switch_tab(tab_name)
         self.after(100, self.update_title)
 
         # Auto-start polling si activé
