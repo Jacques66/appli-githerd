@@ -1,1 +1,8 @@
+# Python packages
 customtkinter>=5.2.0
+
+# System dependencies (Linux):
+# - python3-tk (apt install python3-tk)
+# - git
+# - wmctrl (optional, for always-on-top)
+# - libnotify-bin (optional, for notify-send)
