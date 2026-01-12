@@ -142,15 +142,28 @@ interval_seconds = 60
 
 ## Requirements
 
+### Python
 - Python 3.11+
-- tkinter (usually included with Python)
+- tkinter (usually included with Python, or `sudo apt install python3-tk`)
+
+### Installation des dépendances Python
+```bash
+pip install -r requirements.txt
+```
+
+Ou manuellement :
+```bash
+pip install customtkinter>=5.2.0
+```
+
+### Système
 - Git
 
-### Optional (Linux)
+### Optionnel (Linux)
+- `wmctrl` — Pour le mode "always-on-top"
+- `pulseaudio-utils` — Pour les notifications sonores
+- `libnotify-bin` — Pour les notifications desktop
 
-- `wmctrl` — For always-on-top window
-- `pulseaudio-utils` — For sound notifications
-- `libnotify-bin` — For desktop notifications
 ```bash
 sudo apt install wmctrl pulseaudio-utils libnotify-bin
 ```
