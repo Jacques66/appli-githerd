@@ -399,7 +399,7 @@ class TabButton(ctk.CTkFrame):
         # Extraire les paramètres spécifiques
         self.fg_color = kwargs.pop("fg_color", "#333333")
         self.hover_color = kwargs.pop("hover_color", "#444444")
-        self.corner_radius = kwargs.pop("corner_radius", 6)
+        kwargs.pop("corner_radius", 6)  # Non utilisé pour le canvas
         self.height = kwargs.pop("height", 32)
 
         self.text = text
@@ -411,10 +411,10 @@ class TabButton(ctk.CTkFrame):
         font = ctk.CTkFont(size=13)
         text_width = font.measure(text)
         indicator_space = font.measure("⭯") + self.indicator_margin
-        btn_width = text_width + indicator_space + 24  # 24 = padding gauche/droite
+        self.btn_width = text_width + indicator_space + 24  # 24 = padding gauche/droite
 
-        super().__init__(master, fg_color=self.fg_color, corner_radius=self.corner_radius,
-                         height=self.height, width=btn_width)
+        # Utiliser transparent pour éviter les problèmes de couleur CTk
+        super().__init__(master, fg_color="transparent", height=self.height, width=self.btn_width)
 
         self._hover = False
         self._border_width = 0
@@ -424,13 +424,12 @@ class TabButton(ctk.CTkFrame):
         self.pack_propagate(False)
 
         # Canvas tkinter standard pour dessiner le texte et l'indicateur
-        bg_color = self._apply_appearance_mode(self.fg_color)
         self.canvas = tk.Canvas(
             self,
             highlightthickness=0,
-            bg=bg_color,
+            bg=self.fg_color,
             height=self.height,
-            width=btn_width
+            width=self.btn_width
         )
         self.canvas.pack(fill="both", expand=True)
 
@@ -442,13 +441,6 @@ class TabButton(ctk.CTkFrame):
 
         # Dessiner après que le widget soit affiché
         self.after(10, self._draw)
-
-    def _apply_appearance_mode(self, color):
-        """Convertit une couleur CTk en couleur standard."""
-        if isinstance(color, tuple):
-            mode = ctk.get_appearance_mode()
-            return color[0] if mode == "Dark" else color[1]
-        return color
 
     def _get_font(self):
         """Retourne la police à utiliser."""
@@ -466,17 +458,13 @@ class TabButton(ctk.CTkFrame):
     def _on_enter(self, event=None):
         """Survol - changer la couleur."""
         self._hover = True
-        bg = self._apply_appearance_mode(self.hover_color)
-        self.configure(fg_color=self.hover_color)
-        self.canvas.configure(bg=bg)
+        self.canvas.configure(bg=self.hover_color)
         self._draw()
 
     def _on_leave(self, event=None):
         """Fin survol - restaurer la couleur."""
         self._hover = False
-        bg = self._apply_appearance_mode(self.fg_color)
-        self.configure(fg_color=self.fg_color)
-        self.canvas.configure(bg=bg)
+        self.canvas.configure(bg=self.fg_color)
         self._draw()
 
     def _draw(self):
@@ -541,8 +529,7 @@ class TabButton(ctk.CTkFrame):
         if "fg_color" in kwargs:
             self.fg_color = kwargs.pop("fg_color")
             if not self._hover:
-                bg = self._apply_appearance_mode(self.fg_color)
-                self.canvas.configure(bg=bg)
+                self.canvas.configure(bg=self.fg_color)
         if "hover_color" in kwargs:
             self.hover_color = kwargs.pop("hover_color")
         if "border_width" in kwargs:
