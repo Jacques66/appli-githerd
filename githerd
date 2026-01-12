@@ -41,7 +41,9 @@ DEFAULT_GLOBAL_SETTINGS = {
     "desktop_notifications": True,
     "appearance_mode": "dark",
     "color_theme": "blue",
-    "last_active_tab": ""
+    "last_active_tab": "",
+    "restore_polling": False,  # Restaurer l'état du polling au démarrage
+    "polling_states": {}  # États sauvegardés (repo_path -> bool)
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]
@@ -1931,6 +1933,12 @@ class App(ctk.CTk):
                        variable=notif_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
         row += 1
 
+        # Restore polling on restart
+        restore_poll_var = ctk.BooleanVar(value=self.global_settings.get("restore_polling", False))
+        ctk.CTkCheckBox(main_frame, text="Restore polling state on restart",
+                       variable=restore_poll_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -1948,6 +1956,7 @@ class App(ctk.CTk):
             self.global_settings["start_collapsed"] = collapsed_var.get()
             self.global_settings["advanced_mode"] = new_advanced
             self.global_settings["desktop_notifications"] = notif_var.get()
+            self.global_settings["restore_polling"] = restore_poll_var.get()
 
             try:
                 save_global_settings(self.global_settings)
@@ -1985,7 +1994,19 @@ class App(ctk.CTk):
                 first_tab = list(self.tabs.keys())[0]
                 self.switch_tab(first_tab)
 
+        def restore_polling():
+            """Restaure l'état du polling si l'option est activée."""
+            if not self.global_settings.get("restore_polling", False):
+                return
+            polling_states = self.global_settings.get("polling_states", {})
+            for tab_name, tab in self.tabs.items():
+                repo_path = self.tab_paths.get(tab_name, "")
+                if repo_path and polling_states.get(repo_path, False):
+                    if tab.git_healthy and not tab.polling:
+                        tab.start_polling()
+
         self.after(100, restore_tab)
+        self.after(200, restore_polling)  # Après restore_tab
 
     def save_current_repos(self):
         repos = list(self.tab_paths.values())
@@ -2005,6 +2026,16 @@ class App(ctk.CTk):
         if self.current_tab and self.current_tab in self.tabs:
             current_tab_obj = self.tabs[self.current_tab]
             self.global_settings["start_collapsed"] = not current_tab_obj.log_visible
+            # Sauvegarder l'onglet actif
+            self.global_settings["last_active_tab"] = self.current_tab
+
+        # Toujours sauvegarder l'état du polling pour chaque repo
+        polling_states = {}
+        for tab_name, tab in self.tabs.items():
+            repo_path = self.tab_paths.get(tab_name, "")
+            if repo_path:
+                polling_states[repo_path] = tab.polling
+        self.global_settings["polling_states"] = polling_states
 
         save_global_settings(self.global_settings)
 
