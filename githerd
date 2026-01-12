@@ -453,9 +453,16 @@ class TabButton(tk.Frame):
         self.canvas.bind("<Button-1>", self._on_click)
         self.canvas.bind("<Enter>", self._on_enter)
         self.canvas.bind("<Leave>", self._on_leave)
+        self.canvas.bind("<Map>", self._on_map)
+        self.canvas.bind("<Configure>", self._on_configure)
 
-        # Dessiner après que le widget soit affiché
-        self.after(10, self._draw)
+    def _on_map(self, event=None):
+        """Appelé quand le widget devient visible."""
+        self.after(50, self._draw)
+
+    def _on_configure(self, event=None):
+        """Appelé quand le widget change de taille."""
+        self._draw()
 
     def _get_font(self):
         """Retourne la police avec le zoom appliqué."""
