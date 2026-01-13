@@ -1133,6 +1133,8 @@ class RepoTabContent(ctk.CTkFrame):
             # Masquer l'indicateur de sync
             self.syncing = False
             self.after(0, lambda: self.app.update_tab_color(self))
+            # Mettre à jour le menu Repository si cet onglet est actif
+            self.after(0, lambda: self.app.update_repo_menu() if self.app.get_current_tab() == self else None)
             self.lock.release()
 
     def _do_sync(self):
