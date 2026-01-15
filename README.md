@@ -12,6 +12,7 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 - 🔔 **Sound notifications** — Different sounds for commits, success, and errors
 - 🔔 **Desktop notifications** — System notifications via notify-send
 - 🗑 **Branch cleanup** — Delete branches from the UI
+- 🔘 **Per-branch toggle** — Enable/disable sync per branch with persistence
 - 📌 **Always on top** — Never lose sight of your sync status
 - 📂 **Multi-repo support** — Manage multiple repositories in tabs
 - 💾 **Session persistence** — Repos are remembered between sessions
@@ -89,11 +90,24 @@ githerd
 ### Menu Repository
 
 The **Repository** menu changes dynamically based on the currently selected tab:
-- **Configuration** — Edit repo settings
+- **Options / Open folder** — Edit repo settings, open in file manager
 - **Sync now / Polling** — Control sync operations
+- **Branch toggles** — Enable/disable sync per branch (✓ = enabled)
 - **Delete branches** — Remove tracked branches
-- **Export log / Open folder** — Utilities
-- **Close tab** — Close current tab
+- **Close** — Close current tab
+
+#### Per-branch sync toggle
+
+Each tracked branch appears in the menu with a checkmark indicating its sync status:
+- `✓ claude/branch-name` — Branch sync **enabled** (default)
+- `   claude/branch-name` — Branch sync **disabled**
+
+Click on a branch to toggle its status. Disabled branches are:
+- Excluded from sync operations
+- Still visible in the menu for re-enabling
+- Persisted across restarts in `settings.json`
+
+Non-existent branches are automatically cleaned from persistence on each sync.
 
 ### Configuration
 
@@ -119,6 +133,7 @@ When enabled, the UI is simplified:
 - **Double click** on a tab: sync now (works on any tab, not just the active one)
 - Buttons (Start/Stop polling, Sync now, Options, Close) are hidden
 - Log toggle button is moved next to the status line
+- **Branch deletion**: no confirmation dialog (branches are deleted immediately)
 
 #### Per-repo settings (Menu Repository > Configuration)
 
@@ -148,8 +163,12 @@ interval_seconds = 60
 | File | Content |
 |------|---------|
 | `~/.config/githerd/repos.json` | List of open repositories |
-| `~/.config/githerd/settings.json` | Global settings |
+| `~/.config/githerd/settings.json` | Global settings + polling states + branch sync states |
 | `<repo>/githerd.toml` | Per-repo settings |
+
+The `settings.json` file includes:
+- `polling_states`: per-repo polling state (for restore on restart)
+- `branch_update_enabled`: per-repo, per-branch sync enabled state
 
 ## Requirements
 
