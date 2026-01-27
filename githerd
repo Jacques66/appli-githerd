@@ -44,7 +44,8 @@ DEFAULT_GLOBAL_SETTINGS = {
     "last_active_tab": "",
     "restore_polling": False,  # Restaurer l'état du polling au démarrage
     "polling_states": {},  # États sauvegardés (repo_path -> bool)
-    "branch_update_enabled": {}  # {repo_path: {branch_name: bool}} - branches avec mises à jour activées
+    "branch_update_enabled": {},  # {repo_path: {branch_name: bool}} - branches avec mises à jour activées
+    "sync_new_branches_by_default": False  # Activer la synchro par défaut pour les nouvelles branches découvertes
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]
@@ -1103,10 +1104,20 @@ class RepoTabContent(ctk.CTkFrame):
             return False
         self.log_msg(out if out else "  (ok)")
 
-        branches = get_tracked_branches(self.remote, self.prefix,
-                                        cwd=self.repo_path, git=self.git)
-        for b in branches:
+        all_branches = get_tracked_branches(self.remote, self.prefix,
+                                            cwd=self.repo_path, git=self.git)
+
+        # Filter out disabled branches
+        settings = load_global_settings()
+        branch_states = settings.get("branch_update_enabled", {}).get(str(self.repo_path), {})
+        default_enabled = settings.get("sync_new_branches_by_default", False)
+
+        for b in all_branches:
             target = b.replace(f"{self.remote}/", "")
+            # Skip disabled branches
+            if not branch_states.get(target, default_enabled):
+                self.log_msg(f"  {target}: skipped (sync disabled)")
+                continue
             refspec = f"{self.main}:{target}"
             self.log_msg(f"git push {self.remote} {refspec}")
             code, out, err = run_git([self.git, "push", self.remote, refspec],
@@ -1170,11 +1181,12 @@ class RepoTabContent(ctk.CTkFrame):
         # Filter out disabled branches
         settings = load_global_settings()
         branch_states = settings.get("branch_update_enabled", {}).get(str(self.repo_path), {})
+        default_enabled = settings.get("sync_new_branches_by_default", False)
         branches = []
         disabled_count = 0
         for b in all_branches:
             short_name = b.replace(f"{self.remote}/", "")
-            if branch_states.get(short_name, True):  # Default: enabled
+            if branch_states.get(short_name, default_enabled):
                 branches.append(b)
             else:
                 disabled_count += 1
@@ -1807,7 +1819,7 @@ class App(ctk.CTk):
     def show_global_settings(self):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Settings")
-        dialog.geometry("500x635")
+        dialog.geometry("500x665")
         dialog.transient(self)
         dialog.wait_visibility()
         dialog.grab_set()
@@ -1975,6 +1987,12 @@ class App(ctk.CTk):
                        variable=restore_poll_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
         row += 1
 
+        # Sync new branches by default
+        sync_new_var = ctk.BooleanVar(value=self.global_settings.get("sync_new_branches_by_default", False))
+        ctk.CTkCheckBox(main_frame, text="Enable sync for newly discovered branches",
+                       variable=sync_new_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -1993,6 +2011,7 @@ class App(ctk.CTk):
             self.global_settings["advanced_mode"] = new_advanced
             self.global_settings["desktop_notifications"] = notif_var.get()
             self.global_settings["restore_polling"] = restore_poll_var.get()
+            self.global_settings["sync_new_branches_by_default"] = sync_new_var.get()
 
             try:
                 save_global_settings(self.global_settings)
@@ -2039,7 +2058,7 @@ class App(ctk.CTk):
                 repo_path = self.tab_paths.get(tab_name, "")
                 if repo_path and polling_states.get(repo_path, False):
                     if tab.git_healthy and not tab.polling:
-                        tab.start_polling()
+                        tab.toggle_polling()
 
         self.after(100, restore_tab)
         self.after(200, restore_polling)  # Après restore_tab
@@ -2142,8 +2161,9 @@ class App(ctk.CTk):
             self.switch_tab(tab_name)
         self.after(100, self.update_title)
 
-        # Auto-start polling si activé
-        if self.global_settings.get("auto_start_polling", False):
+        # Auto-start polling si activé ET restore_polling désactivé
+        # (si restore_polling est activé, c'est restore_polling() qui gère l'état)
+        if self.global_settings.get("auto_start_polling", False) and not self.global_settings.get("restore_polling", False):
             self.after(500, tab_content.toggle_polling)
 
     def on_tab_click(self, tab_name):
@@ -2333,9 +2353,10 @@ class App(ctk.CTk):
         if branches:
             settings = load_global_settings()
             branch_states = settings.get("branch_update_enabled", {}).get(str(tab.repo_path), {})
+            default_enabled = settings.get("sync_new_branches_by_default", False)
             for b in branches:
                 short_name = b.replace(f"{tab.remote}/", "")
-                is_enabled = branch_states.get(short_name, True)  # Default: enabled
+                is_enabled = branch_states.get(short_name, default_enabled)
                 checkmark = "✓ " if is_enabled else "   "
                 self.repo_menu.add_command(
                     label=f"{checkmark}{short_name}",
@@ -2362,8 +2383,9 @@ class App(ctk.CTk):
         branch_states = settings.setdefault("branch_update_enabled", {})
         repo_states = branch_states.setdefault(str(repo_path), {})
 
-        # Toggle: if not present or True -> False, if False -> True
-        current = repo_states.get(branch_name, True)
+        # Toggle: use sync_new_branches_by_default as default value
+        default_enabled = settings.get("sync_new_branches_by_default", False)
+        current = repo_states.get(branch_name, default_enabled)
         repo_states[branch_name] = not current
 
         save_global_settings(settings)

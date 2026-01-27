@@ -99,13 +99,15 @@ The **Repository** menu changes dynamically based on the currently selected tab:
 #### Per-branch sync toggle
 
 Each tracked branch appears in the menu with a checkmark indicating its sync status:
-- `✓ claude/branch-name` — Branch sync **enabled** (default)
-- `   claude/branch-name` — Branch sync **disabled**
+- `✓ claude/branch-name` — Branch sync **enabled**
+- `   claude/branch-name` — Branch sync **disabled** (default for new branches)
 
 Click on a branch to toggle its status. Disabled branches are:
-- Excluded from sync operations
+- Excluded from all sync operations (including push after merge)
 - Still visible in the menu for re-enabling
 - Persisted across restarts in `settings.json`
+
+**Note:** Newly discovered branches are **disabled by default**. Enable "Enable sync for newly discovered branches" in Settings to change this behavior.
 
 Non-existent branches are automatically cleaned from persistence on each sync.
 
@@ -123,6 +125,8 @@ Non-existent branches are automatically cleaned from persistence on each sync.
 | Start collapsed | Start with log panel hidden |
 | Advanced mode | Compact UI with tab interactions (see below) |
 | Desktop notifications | Enable system notifications (notify-send) |
+| Restore polling state on restart | Remember and restore polling state per repo |
+| Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
 
 Stored in `~/.config/githerd/settings.json`
 
