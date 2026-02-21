@@ -32,6 +32,11 @@ class RepoTabUIMixin:
         )
         self.log.pack(fill="both", expand=True)
 
+        # Right-click context menu on log
+        self.log.bind("<Button-3>", self._on_log_right_click)
+        # Also bind on internal text widget for clicks directly on text
+        self.log._textbox.bind("<Button-3>", self._on_log_right_click)
+
     def _build_advanced_ui(self):
         """Build compact UI for advanced mode."""
         # Combined frame: Log button left, status right

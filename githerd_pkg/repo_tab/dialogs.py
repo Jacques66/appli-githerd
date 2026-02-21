@@ -132,6 +132,29 @@ class RepoTabDialogsMixin:
         else:
             self.log_msg(f"Error: {err}")
 
+    def _on_log_right_click(self, event):
+        """Show context menu on log right-click."""
+        import tkinter as tk
+        menu = tk.Menu(self.app, tearoff=0)
+        menu.add_command(label="Copy", command=self.copy_log)
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def copy_log(self):
+        """Copy selected text, or all log content if no selection."""
+        try:
+            # Check for selection in the internal text widget
+            sel_ranges = self.log._textbox.tag_ranges("sel")
+            if sel_ranges:
+                text = self.log._textbox.get(sel_ranges[0], sel_ranges[1])
+            else:
+                text = self.log.get("1.0", "end").strip()
+        except Exception:
+            text = self.log.get("1.0", "end").strip()
+
+        if text:
+            self.app.clipboard_clear()
+            self.app.clipboard_append(text)
+
     def log_msg(self, txt):
         """Log a message with timestamp."""
         ts = datetime.now().strftime("%H:%M:%S")
