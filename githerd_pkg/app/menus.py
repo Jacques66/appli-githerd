@@ -169,6 +169,27 @@ class AppMenusMixin:
         # Close tab
         self.repo_menu.add_command(label="Close", command=self.close_current_tab)
 
+        # Inactive repos submenu
+        hidden_repos = self.global_settings.get("hidden_repos", [])
+        if hidden_repos:
+            self.repo_menu.add_separator()
+            inactive_menu = tk.Menu(
+                self.repo_menu, tearoff=0, font=self.menu_font,
+                bg=self.menu_colors["bg"], fg=self.menu_colors["fg"],
+                activebackground=self.menu_colors["active_bg"],
+                activeforeground=self.menu_colors["active_fg"]
+            )
+            for repo_path in hidden_repos:
+                display_name = self.get_tab_display_name(repo_path)
+                inactive_menu.add_command(
+                    label=display_name,
+                    command=lambda rp=repo_path: self.show_repo(rp)
+                )
+            self.repo_menu.add_cascade(
+                label=f"Inactive repos ({len(hidden_repos)})",
+                menu=inactive_menu
+            )
+
     def toggle_branch_update(self, repo_path, branch_name):
         """Toggle branch update enabled/disabled state and save to settings."""
         settings = load_global_settings()

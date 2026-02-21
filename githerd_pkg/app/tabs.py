@@ -86,10 +86,13 @@ class AppTabsMixin:
             counter += 1
             tab_name = f"{repo_name} ({counter})"
 
+        # Get display name (alias or folder name)
+        display_name = self.get_tab_display_name(repo_path)
+
         # Create tab button with custom indicator overlay
         btn = TabButton(
             self.tab_bar,
-            text=repo_name,
+            text=display_name,
             fg_color="#3d3d3d",
             hover_color="#4a4a4a",
             corner_radius=8,
@@ -99,6 +102,10 @@ class AppTabsMixin:
         btn.pack(side="left", padx=(0, 8), pady=8)
         # Double-click for sync now (advanced mode)
         btn.bind("<Double-Button-1>", lambda e, n=tab_name: self.on_tab_double_click(n))
+        # Middle-click to hide repo
+        btn.bind("<Button-2>", lambda e, n=tab_name: self.on_tab_middle_click(n))
+        # Right-click for context menu
+        btn.bind("<Button-3>", lambda e, n=tab_name: self.on_tab_right_click(e, n))
         self.tab_buttons[tab_name] = btn
 
         # Create content directly in container
@@ -223,3 +230,134 @@ class AppTabsMixin:
         if not self.tabs or not self.current_tab:
             return
         self.close_tab(self.current_tab)
+
+    def on_tab_middle_click(self, tab_name):
+        """Handle middle-click on tab - hide repo."""
+        self.hide_repo(tab_name)
+
+    def on_tab_right_click(self, event, tab_name):
+        """Handle right-click on tab - show context menu."""
+        import tkinter as tk
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="Rename tab...",
+            command=lambda: self.show_rename_dialog(tab_name)
+        )
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def hide_repo(self, tab_name):
+        """Hide a repo (make it inactive) - stop polling but keep in settings."""
+        if tab_name not in self.tabs:
+            return
+
+        repo_path = self.tab_paths.get(tab_name)
+        if not repo_path:
+            return
+
+        # Stop polling if active
+        tab = self.tabs[tab_name]
+        if tab.polling:
+            tab.polling = False
+            tab.stop_event.set()
+        tab.stop_countdown()
+        tab.wait_for_polling_thread(timeout=2)
+
+        # Add to hidden repos list
+        hidden = self.global_settings.get("hidden_repos", [])
+        if repo_path not in hidden:
+            hidden.append(repo_path)
+            self.global_settings["hidden_repos"] = hidden
+            save_global_settings(self.global_settings)
+
+        # Remove button
+        if tab_name in self.tab_buttons:
+            self.tab_buttons[tab_name].destroy()
+            del self.tab_buttons[tab_name]
+
+        # Remove content
+        if tab_name in self.tab_frames:
+            del self.tab_frames[tab_name]
+
+        # Destroy tab content widget
+        tab.destroy()
+        del self.tabs[tab_name]
+        del self.tab_paths[tab_name]
+
+        # Switch to another tab if needed
+        if self.current_tab == tab_name:
+            self.current_tab = None
+            if self.tabs:
+                first_tab = list(self.tabs.keys())[0]
+                self.switch_tab(first_tab)
+
+        # Update menu (for inactive repos count)
+        self.update_repo_menu()
+        self.update_title()
+
+    def show_repo(self, repo_path):
+        """Show a hidden repo (make it active again)."""
+        # Remove from hidden list
+        hidden = self.global_settings.get("hidden_repos", [])
+        if repo_path in hidden:
+            hidden.remove(repo_path)
+            self.global_settings["hidden_repos"] = hidden
+            save_global_settings(self.global_settings)
+
+        # Add repo tab
+        self.add_repo(repo_path, switch_to=True)
+
+        # Update menu
+        self.update_repo_menu()
+
+    def show_rename_dialog(self, tab_name):
+        """Show dialog to rename tab."""
+        import tkinter as tk
+        from tkinter import simpledialog
+
+        repo_path = self.tab_paths.get(tab_name)
+        if not repo_path:
+            return
+
+        # Get current alias or repo name
+        aliases = self.global_settings.get("tab_aliases", {})
+        current = aliases.get(repo_path, Path(repo_path).name)
+
+        # Ask for new name
+        new_name = simpledialog.askstring(
+            "Rename Tab",
+            f"Enter new name for tab (leave empty to reset):",
+            initialvalue=current,
+            parent=self
+        )
+
+        if new_name is not None:  # User didn't cancel
+            self.set_tab_alias(tab_name, new_name.strip())
+
+    def set_tab_alias(self, tab_name, alias):
+        """Set or clear tab alias."""
+        repo_path = self.tab_paths.get(tab_name)
+        if not repo_path:
+            return
+
+        aliases = self.global_settings.get("tab_aliases", {})
+
+        if alias:
+            # Set alias
+            aliases[repo_path] = alias
+        else:
+            # Clear alias - remove from dict
+            if repo_path in aliases:
+                del aliases[repo_path]
+
+        self.global_settings["tab_aliases"] = aliases
+        save_global_settings(self.global_settings)
+
+        # Update button text
+        if tab_name in self.tab_buttons:
+            display_name = alias if alias else Path(repo_path).name
+            self.tab_buttons[tab_name].configure(text=display_name)
+
+    def get_tab_display_name(self, repo_path):
+        """Get display name for a repo (alias or folder name)."""
+        aliases = self.global_settings.get("tab_aliases", {})
+        return aliases.get(repo_path, Path(repo_path).name)

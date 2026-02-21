@@ -38,7 +38,9 @@ DEFAULT_GLOBAL_SETTINGS = {
     "restore_polling": False,
     "polling_states": {},
     "branch_update_enabled": {},
-    "sync_new_branches_by_default": False
+    "sync_new_branches_by_default": False,
+    "hidden_repos": [],  # List of hidden (inactive) repo paths
+    "tab_aliases": {}  # {repo_path: "alias"} for custom tab names
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]

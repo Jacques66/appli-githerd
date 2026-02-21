@@ -65,9 +65,18 @@ githerd
 
 ### Managing tabs
 
-- **Right-click** on a tab to close it
+- **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)
+- **Right-click** on a tab to show context menu with "Rename tab..." option
 - Repositories are saved automatically and restored on next launch
+- Hidden (inactive) repos can be reactivated from **Repository > Inactive repos**
 - Each tab has its own polling, status, and log
+
+#### Tab renaming
+
+Right-click on any tab to rename it with a custom alias:
+- Aliases are persistent across restarts
+- Leave empty to reset to original folder name
+- Aliases appear in both the tab and the Inactive repos submenu
 
 **Tab indicators (background colors):**
 - Green background = Polling active
@@ -95,6 +104,7 @@ The **Repository** menu changes dynamically based on the currently selected tab:
 - **Branch toggles** — Enable/disable sync per branch (✓ = enabled)
 - **Delete branches** — Remove tracked branches
 - **Close** — Close current tab
+- **Inactive repos (N)** — Submenu listing hidden repos; click to reactivate
 
 #### Per-branch sync toggle
 
@@ -173,6 +183,8 @@ interval_seconds = 60
 The `settings.json` file includes:
 - `polling_states`: per-repo polling state (for restore on restart)
 - `branch_update_enabled`: per-repo, per-branch sync enabled state
+- `hidden_repos`: list of inactive repo paths
+- `tab_aliases`: custom tab names (`{repo_path: "alias"}`)
 
 ## Requirements
 

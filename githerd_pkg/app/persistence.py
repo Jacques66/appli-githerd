@@ -28,7 +28,11 @@ class AppPersistenceMixin:
         """Load saved repositories and restore state."""
         repos = load_repos_from_file()
         git = self.global_settings.get("git_binary", "git")
+        hidden_repos = self.global_settings.get("hidden_repos", [])
         for repo_path in repos:
+            # Skip hidden (inactive) repos
+            if repo_path in hidden_repos:
+                continue
             if Path(repo_path).exists() and is_git_repo(repo_path, git):
                 self.add_repo(repo_path, switch_to=False)
 
@@ -55,8 +59,13 @@ class AppPersistenceMixin:
         self.after(200, restore_polling)
 
     def save_current_repos(self):
-        """Save list of currently open repositories."""
+        """Save list of currently open repositories (including hidden ones)."""
+        # Include both active and hidden repos
         repos = list(self.tab_paths.values())
+        hidden_repos = self.global_settings.get("hidden_repos", [])
+        for hidden in hidden_repos:
+            if hidden not in repos:
+                repos.append(hidden)
         save_repos(repos)
 
     def save_window_state(self):
