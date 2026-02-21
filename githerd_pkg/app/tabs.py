@@ -243,6 +243,15 @@ class AppTabsMixin:
             label="Rename tab...",
             command=lambda: self.show_rename_dialog(tab_name)
         )
+        menu.add_separator()
+        menu.add_command(
+            label="Hide tab",
+            command=lambda: self.hide_repo(tab_name)
+        )
+        menu.add_command(
+            label="Close",
+            command=lambda: self.close_tab(tab_name)
+        )
         menu.tk_popup(event.x_root, event.y_root)
 
     def hide_repo(self, tab_name):

@@ -213,8 +213,10 @@ class TabButton(tk.Frame):
 
     def configure(self, **kwargs):
         """Configure the button."""
+        text_changed = False
         if "text" in kwargs:
             self.text = kwargs.pop("text")
+            text_changed = True
         if "fg_color" in kwargs:
             self.fg_color = kwargs.pop("fg_color")
         if "hover_color" in kwargs:
@@ -223,6 +225,17 @@ class TabButton(tk.Frame):
             self._border_width = kwargs.pop("border_width")
         if "border_color" in kwargs:
             self._border_color = kwargs.pop("border_color")
+
+        # Recalculate width if text changed
+        if text_changed:
+            font = self._get_font()
+            text_width = font.measure(self.text) if self.text else 50
+            indicator_space = font.measure("⭯") + self.indicator_margin
+            padding = int(30 * self.font_zoom)
+            self.btn_width = text_width + indicator_space + padding
+            # Resize frame and canvas
+            super().configure(width=self.btn_width)
+            self.canvas.configure(width=self.btn_width)
 
         if kwargs:
             super().configure(**kwargs)
