@@ -27,6 +27,7 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 | Situation | Action |
 |-----------|--------|
 | Nothing to do | 🟢 Idle |
+| Empty remote (no main branch) | Bootstrap push main |
 | Local main ahead | Auto push |
 | Branches behind main | Auto push to sync |
 | 1 branch ahead (no divergence) | Fast-forward + push |

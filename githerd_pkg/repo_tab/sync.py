@@ -51,6 +51,25 @@ class RepoTabSyncMixin:
 
         local_ahead = local_main_ahead(self.remote, self.main,
                                        cwd=self.repo_path, git=self.git)
+
+        if local_ahead == -1:
+            # Remote main doesn't exist - bootstrap push
+            self.log_msg(f"Remote {self.remote}/{self.main} not found → bootstrap push")
+            code, out, err = run_git(
+                [self.git, "push", "-u", self.remote, self.main],
+                cwd=self.repo_path
+            )
+            if code == 0:
+                self.log_msg(out if out else "  (ok)")
+                self.log_msg("Main branch pushed, remote initialized")
+                self.state_label.configure(text="Sync OK")
+                self.info_label.configure(text="Remote initialized with main branch")
+            else:
+                self.log_msg(f"ERROR bootstrap push: {err}")
+                self.state_label.configure(text="ERROR")
+                self.stop_polling()
+            return
+
         if local_ahead > 0:
             self.log_msg(f"Local main ahead by {local_ahead} commits → push")
             if self.push_main_and_branches():

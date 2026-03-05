@@ -80,11 +80,28 @@ def are_files_disjoint(branches, main_ref, remote, cwd=None, git="git"):
     return True
 
 
+def remote_ref_exists(remote, branch, cwd=None, git="git"):
+    """Check if a remote tracking ref exists locally (e.g., origin/main)."""
+    code, _, _ = run_git(
+        [git, "rev-parse", "--verify", f"refs/remotes/{remote}/{branch}"],
+        cwd=cwd
+    )
+    return code == 0
+
+
 def local_main_ahead(remote, main, cwd=None, git="git"):
-    """Check if local main is ahead of remote main."""
+    """Check if local main is ahead of remote main.
+
+    Returns:
+        int: Number of commits ahead, or -1 if remote ref doesn't exist (bootstrap needed)
+    """
+    # Check if remote ref exists first
+    if not remote_ref_exists(remote, main, cwd=cwd, git=git):
+        # Remote main doesn't exist - need bootstrap push
+        return -1
     try:
         return commits_ahead(f"{remote}/{main}", main, cwd=cwd, git=git)
-    except:
+    except Exception:
         return 0
 
 
