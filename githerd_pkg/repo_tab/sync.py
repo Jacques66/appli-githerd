@@ -139,7 +139,6 @@ class RepoTabSyncMixin:
 
         if new_commits_detected:
             self.log_msg("New commit detected!")
-            threading.Thread(target=lambda: play_sound("commit"), daemon=True).start()
             if self.app.global_settings.get("desktop_notifications", True):
                 send_notification(
                     f"GitHerd — {self.repo_path.name}",
@@ -237,6 +236,10 @@ class RepoTabSyncMixin:
         other_count = len(branches) - 1
         self.info_label.configure(text=f"Pull from {leader}, push to {other_count} other branches")
         self.log_msg("Sync completed successfully")
+
+        # Play sound after successful sync
+        if new_commits_detected:
+            threading.Thread(target=lambda: play_sound("commit"), daemon=True).start()
 
     def push_main_and_branches(self):
         """Push main and all enabled branches."""
