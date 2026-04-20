@@ -5,6 +5,7 @@ GitHerd — App core mixin.
 Handles initialization, lifecycle, and basic window management.
 """
 
+import queue
 import subprocess
 import customtkinter as ctk
 
@@ -22,6 +23,33 @@ class AppCoreMixin:
         self.tab_buttons = {}
         self.tab_frames = {}
         self.current_tab = None
+        # Thread-safe UI dispatcher: worker threads push callables here,
+        # the main thread drains them. Needed because self.after() itself
+        # is not thread-safe in this Tcl/Tk build (createcommand requires
+        # the main thread).
+        self._ui_queue = queue.Queue()
+
+    def ui_call(self, fn):
+        """Thread-safe: schedule fn() to run on the Tk main thread.
+
+        Call this from any thread to marshal a UI update onto the main
+        loop. Exceptions raised by fn() are swallowed to keep the
+        drainer alive.
+        """
+        self._ui_queue.put(fn)
+
+    def _drain_ui_queue(self):
+        """Runs on the main thread via after(). Drains pending UI calls."""
+        try:
+            while True:
+                fn = self._ui_queue.get_nowait()
+                try:
+                    fn()
+                except Exception:
+                    pass
+        except queue.Empty:
+            pass
+        self.after(30, self._drain_ui_queue)
 
     def _init_window(self):
         """Initialize window geometry and position."""

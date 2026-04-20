@@ -57,6 +57,9 @@ class App(
         # Save on close
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
+        # Start the thread-safe UI dispatcher drainer on the main loop
+        self.after(30, self._drain_ui_queue)
+
         # Always on top
         self.after(500, self.set_always_on_top)
 

@@ -224,14 +224,14 @@ class RepoTabUIMixin:
     def disable_tab(self, error_msg):
         """Disable tab due to error. Thread-safe."""
         self.polling = False
-        self.after(0, lambda: self.state_label.configure(text="ERROR — Git not working"))
-        self.after(0, lambda msg=error_msg: self.info_label.configure(text=msg))
-        self.after(0, lambda: self.btn_poll.configure(state="disabled"))
-        self.after(0, lambda: self.btn_sync.configure(state="disabled"))
-        self.after(0, lambda: self.btn_poll.configure(text="▶ Start polling"))
-        self.after(0, lambda: self.app.update_tab_color(self))
+        self.app.ui_call(lambda: self.state_label.configure(text="ERROR — Git not working"))
+        self.app.ui_call(lambda msg=error_msg: self.info_label.configure(text=msg))
+        self.app.ui_call(lambda: self.btn_poll.configure(state="disabled"))
+        self.app.ui_call(lambda: self.btn_sync.configure(state="disabled"))
+        self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
+        self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def enable_tab(self):
         """Enable tab. Thread-safe."""
-        self.after(0, lambda: self.btn_poll.configure(state="normal"))
-        self.after(0, lambda: self.btn_sync.configure(state="normal"))
+        self.app.ui_call(lambda: self.btn_poll.configure(state="normal"))
+        self.app.ui_call(lambda: self.btn_sync.configure(state="normal"))
