@@ -193,12 +193,12 @@ The `settings.json` file includes:
 - Python 3.11+
 - tkinter (usually included with Python, or `sudo apt install python3-tk`)
 
-### Installation des dépendances Python
+### Installing Python dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-Ou manuellement :
+Or manually :
 ```bash
 pip install customtkinter>=5.2.0
 ```
@@ -206,10 +206,10 @@ pip install customtkinter>=5.2.0
 ### Système
 - Git
 
-### Optionnel (Linux)
-- `wmctrl` — Pour le mode "always-on-top"
-- `pulseaudio-utils` — Pour les notifications sonores
-- `libnotify-bin` — Pour les notifications desktop
+### Optional (Linux)
+- `wmctrl` — For the mode "always-on-top"
+- `pulseaudio-utils` — For audio notifications
+- `libnotify-bin` — For desktop notifications
 
 ```bash
 sudo apt install wmctrl pulseaudio-utils libnotify-bin
