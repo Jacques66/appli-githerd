@@ -222,16 +222,16 @@ class RepoTabUIMixin:
         self.btn_merge.pack_forget()
 
     def disable_tab(self, error_msg):
-        """Disable tab due to error."""
-        self.state_label.configure(text="ERROR — Git not working")
-        self.info_label.configure(text=error_msg)
-        self.btn_poll.configure(state="disabled")
-        self.btn_sync.configure(state="disabled")
+        """Disable tab due to error. Thread-safe."""
         self.polling = False
-        self.btn_poll.configure(text="▶ Start polling")
+        self.after(0, lambda: self.state_label.configure(text="ERROR — Git not working"))
+        self.after(0, lambda msg=error_msg: self.info_label.configure(text=msg))
+        self.after(0, lambda: self.btn_poll.configure(state="disabled"))
+        self.after(0, lambda: self.btn_sync.configure(state="disabled"))
+        self.after(0, lambda: self.btn_poll.configure(text="▶ Start polling"))
         self.after(0, lambda: self.app.update_tab_color(self))
 
     def enable_tab(self):
-        """Enable tab."""
-        self.btn_poll.configure(state="normal")
-        self.btn_sync.configure(state="normal")
+        """Enable tab. Thread-safe."""
+        self.after(0, lambda: self.btn_poll.configure(state="normal"))
+        self.after(0, lambda: self.btn_sync.configure(state="normal"))
