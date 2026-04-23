@@ -67,7 +67,12 @@ githerd
 ### Managing tabs
 
 - **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)
-- **Right-click** on a tab to show context menu with "Rename tab..." option
+- **Right-click** on a tab to show the context menu:
+  - **Run** — trigger an immediate sync for this repo
+  - **Options...** — open the repo configuration dialog
+  - **Rename tab...** — set a custom alias for the tab
+  - **Hide tab** — same as middle-click
+  - **Close** — remove the tab
 - Repositories are saved automatically and restored on next launch
 - Hidden (inactive) repos can be reactivated from **Repository > Inactive repos**
 - Each tab has its own polling, status, and log

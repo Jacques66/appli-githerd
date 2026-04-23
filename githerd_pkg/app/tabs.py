@@ -238,7 +238,18 @@ class AppTabsMixin:
     def on_tab_right_click(self, event, tab_name):
         """Handle right-click on tab - show context menu."""
         import tkinter as tk
+        tab = self.tabs.get(tab_name)
         menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="Run",
+            command=lambda: tab.manual_sync() if tab else None,
+            state="normal" if tab and tab.git_healthy else "disabled"
+        )
+        menu.add_command(
+            label="Options...",
+            command=lambda: tab.show_config_dialog() if tab else None
+        )
+        menu.add_separator()
         menu.add_command(
             label="Rename tab...",
             command=lambda: self.show_rename_dialog(tab_name)
