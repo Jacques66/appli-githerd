@@ -67,15 +67,35 @@ class AppCoreMixin:
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):
-        """Render the bar as the last N entries: HH:MM:SS repo · HH:MM:SS repo …"""
-        bar = getattr(self, "status_bar_label", None)
-        if bar is None:
+        """Render the bar as N entries: oldest left, newest right (white)."""
+        inner = getattr(self, "status_bar_inner", None)
+        if inner is None:
             return
+        for child in inner.winfo_children():
+            child.destroy()
         if not self.recent_events:
-            bar.configure(text="")
             return
-        parts = [f"{ts.strftime('%H:%M:%S')} {alias}" for ts, alias in self.recent_events]
-        bar.configure(text="  ·  ".join(parts))
+        entries = list(reversed(self.recent_events))  # oldest first, newest last
+        last_idx = len(entries) - 1
+        for i, (ts, tab_name) in enumerate(entries):
+            path = self.tab_paths.get(tab_name)
+            display = self.get_tab_display_name(path) if path else tab_name
+            text = f"{ts.strftime('%H:%M:%S')} {display}"
+            is_newest = (i == last_idx)
+            label = ctk.CTkLabel(
+                inner,
+                text=text,
+                font=ctk.CTkFont(size=12, weight="bold" if is_newest else "normal"),
+                text_color="white" if is_newest else "gray",
+                cursor="hand2"
+            )
+            label.pack(side="left")
+            label.bind("<Button-1>", lambda e: self.show_recent_events_popup())
+            if i < last_idx:
+                sep = ctk.CTkLabel(inner, text="  ·  ",
+                                   font=ctk.CTkFont(size=12), text_color="gray")
+                sep.pack(side="left")
+                sep.bind("<Button-1>", lambda e: self.show_recent_events_popup())
 
     def _build_status_bar(self):
         """Create the bottom status bar showing last meaningful sync event.
@@ -87,18 +107,13 @@ class AppCoreMixin:
         self.status_bar = ctk.CTkFrame(self, height=24, corner_radius=0)
         self.status_bar.pack(side="bottom", fill="x", padx=0, pady=0)
         self.status_bar.pack_propagate(False)
-
-        self.status_bar_label = ctk.CTkLabel(
-            self.status_bar,
-            text="No recent activity",
-            font=ctk.CTkFont(size=12),
-            text_color="gray",
-            anchor="w",
-            cursor="hand2"
-        )
-        self.status_bar_label.pack(side="left", fill="x", expand=True, padx=10, pady=2)
-        self.status_bar_label.bind("<Button-1>", lambda e: self.show_recent_events_popup())
         self.status_bar.bind("<Button-1>", lambda e: self.show_recent_events_popup())
+
+        # Inner container holds one CTkLabel per entry so we can color the
+        # newest one differently.
+        self.status_bar_inner = ctk.CTkFrame(self.status_bar, fg_color="transparent")
+        self.status_bar_inner.pack(side="left", fill="x", expand=True, padx=10, pady=2)
+        self.status_bar_inner.bind("<Button-1>", lambda e: self.show_recent_events_popup())
 
     def show_recent_events_popup(self):
         """Open a Toplevel listing the last N recorded events."""
@@ -115,8 +130,10 @@ class AppCoreMixin:
 
         text = ctk.CTkTextbox(frame, font=ctk.CTkFont(family="Consolas", size=12))
         text.pack(fill="both", expand=True)
-        for ts, alias in self.recent_events:
-            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {alias}\n")
+        for ts, tab_name in self.recent_events:
+            path = self.tab_paths.get(tab_name)
+            display = self.get_tab_display_name(path) if path else tab_name
+            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {display}\n")
         text.configure(state="disabled")
 
         ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
