@@ -92,15 +92,15 @@ Right-click on any tab to rename it with a custom alias:
 
 ### Recent activity status bar
 
-A thin bar at the bottom of the main window shows the **most recent meaningful sync event** across all repositories — useful for identifying which repo just beeped.
+A thin bar at the bottom of the main window shows the **last N repos that just had a meaningful sync event** — useful for identifying which repo just beeped.
 
-Format: `HH:MM:SS  repo-alias  —  <event>`
+Format: `HH:MM:SS repo · HH:MM:SS repo · …`
 
-Events recorded include: new commit detected, pull/push completed, branches synced, merges, STOP states, and remote initialization. Idle "nothing to do" syncs are skipped.
+Events that count: new commit detected, pull/push completed, branches synced, merges, STOP states, and remote initialization. Idle "nothing to do" syncs and errors are skipped.
 
-- **Click the bar** to open a popup listing the last N events (with timestamps and repo names).
+- **Click the bar** to open a popup listing the same entries one per line.
 - The number of entries kept is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20).
-- Events are kept in memory only and reset on restart.
+- Entries are in memory only and reset on restart.
 
 ### Keyboard shortcuts
 

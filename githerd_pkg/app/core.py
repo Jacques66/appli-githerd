@@ -57,25 +57,25 @@ class AppCoreMixin:
             pass
         self.after(30, self._drain_ui_queue)
 
-    def record_event(self, repo_alias, message):
+    def record_event(self, repo_alias):
         """Record a meaningful sync event for the global status bar.
 
         Thread-safe: the deque append is atomic in CPython, and the
         widget refresh is marshalled to the main thread via ui_call.
         """
-        self.recent_events.appendleft((datetime.now(), repo_alias, message))
+        self.recent_events.appendleft((datetime.now(), repo_alias))
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):
-        """Update the status bar text with the most recent event."""
+        """Render the bar as the last N entries: HH:MM:SS repo · HH:MM:SS repo …"""
         bar = getattr(self, "status_bar_label", None)
         if bar is None:
             return
         if not self.recent_events:
-            bar.configure(text="No recent activity")
+            bar.configure(text="")
             return
-        ts, alias, msg = self.recent_events[0]
-        bar.configure(text=f"{ts.strftime('%H:%M:%S')}  {alias}  —  {msg}")
+        parts = [f"{ts.strftime('%H:%M:%S')} {alias}" for ts, alias in self.recent_events]
+        bar.configure(text="  ·  ".join(parts))
 
     def _build_status_bar(self):
         """Create the bottom status bar showing last meaningful sync event.
@@ -115,8 +115,8 @@ class AppCoreMixin:
 
         text = ctk.CTkTextbox(frame, font=ctk.CTkFont(family="Consolas", size=12))
         text.pack(fill="both", expand=True)
-        for ts, alias, msg in self.recent_events:
-            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {alias:<20}  {msg}\n")
+        for ts, alias in self.recent_events:
+            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {alias}\n")
         text.configure(state="disabled")
 
         ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
