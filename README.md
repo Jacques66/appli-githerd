@@ -90,6 +90,18 @@ Right-click on any tab to rename it with a custom alias:
 - Red background = STOP (action required or error)
 - `● Name` = Update detected (click tab to clear)
 
+### Recent activity status bar
+
+A thin bar at the bottom of the main window shows the **most recent meaningful sync event** across all repositories — useful for identifying which repo just beeped.
+
+Format: `HH:MM:SS  repo-alias  —  <event>`
+
+Events recorded include: new commit detected, pull/push completed, branches synced, merges, STOP states, and remote initialization. Idle "nothing to do" syncs are skipped.
+
+- **Click the bar** to open a popup listing the last N events (with timestamps and repo names).
+- The number of entries kept is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20).
+- Events are kept in memory only and reset on restart.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |

@@ -192,6 +192,13 @@ class AppDialogsMixin:
                        variable=sync_new_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
         row += 1
 
+        # Recent sync activity buffer size (status bar)
+        ctk.CTkLabel(main_frame, text="Recent activity entries kept:").grid(row=row, column=0, sticky="w", pady=6)
+        recent_limit_var = ctk.StringVar(value=str(self.global_settings.get("recent_sync_limit", 5)))
+        ctk.CTkOptionMenu(main_frame, variable=recent_limit_var,
+                         values=["3", "5", "10", "20"], width=80).grid(row=row, column=1, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -210,6 +217,12 @@ class AppDialogsMixin:
             self.global_settings["desktop_notifications"] = notif_var.get()
             self.global_settings["restore_polling"] = restore_poll_var.get()
             self.global_settings["sync_new_branches_by_default"] = sync_new_var.get()
+            try:
+                new_recent_limit = int(recent_limit_var.get())
+            except ValueError:
+                new_recent_limit = 5
+            self.global_settings["recent_sync_limit"] = new_recent_limit
+            self._resize_recent_events(new_recent_limit)
 
             try:
                 save_global_settings(self.global_settings)

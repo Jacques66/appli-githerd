@@ -39,6 +39,10 @@ class App(
         # Build menus
         self._build_menus()
 
+        # Status bar at the bottom (packed first with side="bottom" so it
+        # stays anchored regardless of the log accordion above it).
+        self._build_status_bar()
+
         # Create tab bar
         self.tab_bar = ctk.CTkFrame(self, height=40)
         self.tab_bar.pack(fill="x", padx=10, pady=(10, 0))

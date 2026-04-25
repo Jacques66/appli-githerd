@@ -200,8 +200,8 @@ class RepoTabUIMixin:
         else:
             x, y = 100, 100
 
-        # Collapsed height: 189px normal, 151px advanced
-        collapsed_height = 151 if self.advanced_mode else 189
+        # Collapsed height: 189px normal, 151px advanced (+24 for status bar)
+        collapsed_height = (151 if self.advanced_mode else 189) + 24
 
         if self.log_visible:
             self.log_frame.pack_forget()
@@ -210,7 +210,7 @@ class RepoTabUIMixin:
         else:
             self.log_frame.pack(fill="both", expand=True, padx=10, pady=6)
             self.btn_toggle_log.configure(text="▼ Log")
-            self.app.geometry(f"710x750+{x}+{y}")
+            self.app.geometry(f"710x774+{x}+{y}")
         self.log_visible = not self.log_visible
 
     def show_merge_button(self):

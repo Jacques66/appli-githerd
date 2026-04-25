@@ -7,6 +7,8 @@ Handles initialization, lifecycle, and basic window management.
 
 import queue
 import subprocess
+from collections import deque
+from datetime import datetime
 import customtkinter as ctk
 
 from ..config import load_global_settings, save_global_settings
@@ -28,6 +30,10 @@ class AppCoreMixin:
         # is not thread-safe in this Tcl/Tk build (createcommand requires
         # the main thread).
         self._ui_queue = queue.Queue()
+        # Global rolling list of meaningful sync events across all repos.
+        # Each entry: (datetime, repo_alias, message). Newest first.
+        self._recent_events_limit = max(1, int(self.global_settings.get("recent_sync_limit", 5)))
+        self.recent_events = deque(maxlen=self._recent_events_limit)
 
     def ui_call(self, fn):
         """Thread-safe: schedule fn() to run on the Tk main thread.
@@ -51,15 +57,89 @@ class AppCoreMixin:
             pass
         self.after(30, self._drain_ui_queue)
 
+    def record_event(self, repo_alias, message):
+        """Record a meaningful sync event for the global status bar.
+
+        Thread-safe: the deque append is atomic in CPython, and the
+        widget refresh is marshalled to the main thread via ui_call.
+        """
+        self.recent_events.appendleft((datetime.now(), repo_alias, message))
+        self.ui_call(self._refresh_status_bar)
+
+    def _refresh_status_bar(self):
+        """Update the status bar text with the most recent event."""
+        bar = getattr(self, "status_bar_label", None)
+        if bar is None:
+            return
+        if not self.recent_events:
+            bar.configure(text="No recent activity")
+            return
+        ts, alias, msg = self.recent_events[0]
+        bar.configure(text=f"{ts.strftime('%H:%M:%S')}  {alias}  —  {msg}")
+
+    def _build_status_bar(self):
+        """Create the bottom status bar showing last meaningful sync event.
+
+        Packed with side='bottom' BEFORE the tab bar / content container so
+        it stays anchored at the bottom of the window regardless of the
+        per-tab log accordion above.
+        """
+        self.status_bar = ctk.CTkFrame(self, height=24, corner_radius=0)
+        self.status_bar.pack(side="bottom", fill="x", padx=0, pady=0)
+        self.status_bar.pack_propagate(False)
+
+        self.status_bar_label = ctk.CTkLabel(
+            self.status_bar,
+            text="No recent activity",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            anchor="w",
+            cursor="hand2"
+        )
+        self.status_bar_label.pack(side="left", fill="x", expand=True, padx=10, pady=2)
+        self.status_bar_label.bind("<Button-1>", lambda e: self.show_recent_events_popup())
+        self.status_bar.bind("<Button-1>", lambda e: self.show_recent_events_popup())
+
+    def show_recent_events_popup(self):
+        """Open a Toplevel listing the last N recorded events."""
+        import tkinter as tk
+        if not self.recent_events:
+            return
+        popup = ctk.CTkToplevel(self)
+        popup.title("Recent sync activity")
+        popup.geometry("520x240")
+        popup.transient(self)
+
+        frame = ctk.CTkFrame(popup, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        text = ctk.CTkTextbox(frame, font=ctk.CTkFont(family="Consolas", size=12))
+        text.pack(fill="both", expand=True)
+        for ts, alias, msg in self.recent_events:
+            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {alias:<20}  {msg}\n")
+        text.configure(state="disabled")
+
+        ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
+
+    def _resize_recent_events(self, new_limit):
+        """Rebuild the deque preserving content when the limit changes."""
+        new_limit = max(1, int(new_limit))
+        if new_limit == self._recent_events_limit:
+            return
+        self._recent_events_limit = new_limit
+        self.recent_events = deque(list(self.recent_events)[:new_limit], maxlen=new_limit)
+        self._refresh_status_bar()
+
     def _init_window(self):
         """Initialize window geometry and position."""
         self.title("GitHerd")
         if self.global_settings.get("start_collapsed", False):
             advanced_mode = self.global_settings.get("advanced_mode", False)
-            collapsed_height = 151 if advanced_mode else 189
+            # +24px for the bottom status bar
+            collapsed_height = (151 if advanced_mode else 189) + 24
             self.geometry(f"710x{collapsed_height}")
         else:
-            self.geometry("710x750")
+            self.geometry("710x774")
 
         # Restore window position if saved (after restart)
         saved_x = self.global_settings.get("window_x")

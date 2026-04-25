@@ -106,9 +106,11 @@ class RepoTabPollingMixin:
                     self.state_label.configure(text="STOP — Merge possible")
                     self.info_label.configure(text=f"Disjoint files. {msg}")
                     self.after(100, self.show_merge_button)
+                    self.app.record_event(self.tab_name, "STOP — disjoint files, merge possible")
                 else:
                     self.state_label.configure(text="STOP — Human action required")
                     self.info_label.configure(text=msg)
+                    self.app.record_event(self.tab_name, "STOP — human action required")
 
                 self.after(0, lambda: self.app.update_tab_color(self))
 
