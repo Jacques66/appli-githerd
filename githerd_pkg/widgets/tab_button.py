@@ -30,6 +30,7 @@ class TabButton(tk.Frame):
         self.command = command
         self.indicator = ""
         self.indicator_margin = 8
+        self.countdown_text = ""
 
         self._hover = False
         self._border_width = 0
@@ -207,6 +208,18 @@ class TabButton(tk.Frame):
                 anchor="center"
             )
 
+        # Tiny countdown in bottom-right corner (only when polling active)
+        if self.countdown_text:
+            cd_size = max(8, int(9 * self.font_zoom))
+            cd_font = ctk.CTkFont(size=cd_size)
+            self.canvas.create_text(
+                width - 6, height - 4,
+                text=self.countdown_text,
+                fill="#aaaaaa",
+                font=cd_font,
+                anchor="se"
+            )
+
         # Draw rounded border if active
         if self._border_width > 0 and self._border_color:
             self._draw_rounded_border(1, 1, width - 1, height - 1, self.corner_radius, self._border_color, self._border_width)
@@ -244,6 +257,17 @@ class TabButton(tk.Frame):
     def set_indicator(self, indicator=""):
         """Set indicator to display (e.g., '⭯', '●', '')."""
         self.indicator = indicator
+        self._draw()
+
+    def set_countdown(self, seconds):
+        """Set the tiny countdown text in the bottom-right corner.
+
+        Pass a positive int to display "<n>s", or 0/None to clear.
+        """
+        new_text = f"{seconds}s" if seconds and seconds > 0 else ""
+        if new_text == self.countdown_text:
+            return
+        self.countdown_text = new_text
         self._draw()
 
     def bind(self, sequence, func, add=None):

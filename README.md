@@ -94,13 +94,19 @@ Right-click on any tab to rename it with a custom alias:
 
 A thin bar at the bottom of the main window shows the **last N repos that just had a meaningful sync event** — useful for identifying which repo just beeped.
 
-Format: `HH:MM:SS repo · HH:MM:SS repo · …`
+Format: `HH:MM:SS repo hash  ·  HH:MM:SS repo hash  ·  …`
 
-Events that count: new commit detected, pull/push completed, branches synced, merges, STOP states, and remote initialization. Idle "nothing to do" syncs and errors are skipped.
+The newest entry is on the **right**, in white. Older entries are on the left, in gray. The hash is the short HEAD commit (`git rev-parse --short HEAD`) at the moment the event was recorded. Repo names match the tab button labels (aliases honored).
+
+Events recorded: pull/push completed, branches synced, merges, STOP states, remote initialization. Each successful sync produces a single entry. Idle "nothing to do" syncs and errors are skipped.
 
 - **Click the bar** to open a popup listing the same entries one per line.
 - The number of entries kept is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20).
 - Entries are in memory only and reset on restart.
+
+### Per-tab countdown badge
+
+When polling is active on a tab, a tiny countdown (e.g. `42s`) appears in the bottom-right corner of the tab button, indicating the seconds remaining before the next sync. It clears as soon as polling is stopped.
 
 ### Keyboard shortcuts
 

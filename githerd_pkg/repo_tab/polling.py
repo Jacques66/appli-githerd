@@ -11,7 +11,7 @@ import threading
 from ..config import load_repo_config
 from ..git_utils import (
     run_git, get_tracked_branches, commits_ahead, commits_behind,
-    local_main_ahead, are_files_disjoint, check_git_health
+    local_main_ahead, are_files_disjoint, check_git_health, get_short_head
 )
 
 
@@ -106,11 +106,11 @@ class RepoTabPollingMixin:
                     self.state_label.configure(text="STOP — Merge possible")
                     self.info_label.configure(text=f"Disjoint files. {msg}")
                     self.after(100, self.show_merge_button)
-                    self.app.record_event(self.tab_name)
+                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git))
                 else:
                     self.state_label.configure(text="STOP — Human action required")
                     self.info_label.configure(text=msg)
-                    self.app.record_event(self.tab_name)
+                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git))
 
                 self.after(0, lambda: self.app.update_tab_color(self))
 
@@ -201,20 +201,30 @@ class RepoTabPollingMixin:
             self.after_cancel(self.countdown_job)
             self.countdown_job = None
         self.countdown_label.configure(text="")
+        self._set_button_countdown(0)
 
     def update_countdown(self):
         """Update the countdown display."""
         if not self.polling:
             self.countdown_label.configure(text="")
+            self._set_button_countdown(0)
             return
 
         remaining = int(self.next_poll_time - time.time())
         if remaining > 0:
             self.countdown_label.configure(text=f"(next sync: {remaining}s)")
+            self._set_button_countdown(remaining)
         else:
             self.countdown_label.configure(text="(sync...)")
+            self._set_button_countdown(0)
 
         self.countdown_job = self.after(1000, self.update_countdown)
+
+    def _set_button_countdown(self, seconds):
+        """Push countdown to the corresponding TabButton if it exists."""
+        btn = self.app.tab_buttons.get(self.tab_name)
+        if btn and hasattr(btn, "set_countdown"):
+            btn.set_countdown(seconds)
 
     def _mark_if_not_active(self):
         """Mark tab as updated if not active."""

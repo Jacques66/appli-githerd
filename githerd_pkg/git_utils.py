@@ -117,6 +117,12 @@ def is_git_repo(path, git="git"):
     return code == 0
 
 
+def get_short_head(cwd=None, git="git"):
+    """Return the short HEAD commit hash, or empty string on failure."""
+    code, out, _ = run_git([git, "rev-parse", "--short", "HEAD"], cwd=cwd)
+    return out.strip() if code == 0 else ""
+
+
 def check_git_health(repo_path, remote, main_branch, git="git"):
     """Check if git is functional for this repository."""
     code, _, err = run_git([git, "rev-parse", "--git-dir"], cwd=repo_path)

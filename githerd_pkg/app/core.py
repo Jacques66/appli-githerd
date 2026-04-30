@@ -57,13 +57,13 @@ class AppCoreMixin:
             pass
         self.after(30, self._drain_ui_queue)
 
-    def record_event(self, repo_alias):
+    def record_event(self, repo_alias, commit_hash=""):
         """Record a meaningful sync event for the global status bar.
 
         Thread-safe: the deque append is atomic in CPython, and the
         widget refresh is marshalled to the main thread via ui_call.
         """
-        self.recent_events.appendleft((datetime.now(), repo_alias))
+        self.recent_events.appendleft((datetime.now(), repo_alias, commit_hash))
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):
@@ -77,10 +77,12 @@ class AppCoreMixin:
             return
         entries = list(reversed(self.recent_events))  # oldest first, newest last
         last_idx = len(entries) - 1
-        for i, (ts, tab_name) in enumerate(entries):
+        for i, (ts, tab_name, commit_hash) in enumerate(entries):
             path = self.tab_paths.get(tab_name)
             display = self.get_tab_display_name(path) if path else tab_name
             text = f"{ts.strftime('%H:%M:%S')} {display}"
+            if commit_hash:
+                text += f" {commit_hash}"
             is_newest = (i == last_idx)
             label = ctk.CTkLabel(
                 inner,
@@ -130,10 +132,13 @@ class AppCoreMixin:
 
         text = ctk.CTkTextbox(frame, font=ctk.CTkFont(family="Consolas", size=12))
         text.pack(fill="both", expand=True)
-        for ts, tab_name in self.recent_events:
+        for ts, tab_name, commit_hash in self.recent_events:
             path = self.tab_paths.get(tab_name)
             display = self.get_tab_display_name(path) if path else tab_name
-            text.insert("end", f"{ts.strftime('%H:%M:%S')}  {display}\n")
+            line = f"{ts.strftime('%H:%M:%S')}  {display}"
+            if commit_hash:
+                line += f"  {commit_hash}"
+            text.insert("end", line + "\n")
         text.configure(state="disabled")
 
         ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
