@@ -11,7 +11,8 @@ import threading
 from ..config import load_repo_config
 from ..git_utils import (
     run_git, get_tracked_branches, commits_ahead, commits_behind,
-    local_main_ahead, are_files_disjoint, check_git_health, get_short_head
+    local_main_ahead, are_files_disjoint, check_git_health, get_short_head,
+    get_remote_url
 )
 
 
@@ -19,12 +20,26 @@ class RepoTabPollingMixin:
     """Mixin for polling and initial scan operations."""
 
     def check_and_update_health(self):
-        """Check git health and update UI accordingly."""
+        """Check git health and update UI accordingly.
+
+        On failure, dump diagnostic context to the log textbox so the
+        user can see WHY the health check failed (which command, what
+        stderr, the remote URL, the git binary used).
+        """
         ok, err = check_git_health(self.repo_path, self.remote, self.main, self.git)
         self.git_healthy = ok
         self.git_error = err
 
         if not ok:
+            self.log_msg(f"Health check FAILED: {err}")
+            self.log_msg(f"  repo path : {self.repo_path}")
+            self.log_msg(f"  git binary: {self.git}")
+            self.log_msg(f"  remote    : {self.remote}")
+            url = get_remote_url(self.remote, cwd=self.repo_path, git=self.git)
+            if url:
+                self.log_msg(f"  remote URL: {url}")
+            else:
+                self.log_msg(f"  remote URL: (could not resolve)")
             self.disable_tab(err)
         else:
             self.enable_tab()

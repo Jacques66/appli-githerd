@@ -10,7 +10,7 @@ import threading
 from ..config import load_global_settings, save_global_settings, load_repo_config
 from ..git_utils import (
     run_git, get_tracked_branches, commits_ahead, commits_behind,
-    local_main_ahead, are_files_disjoint, get_short_head
+    local_main_ahead, are_files_disjoint, get_short_head, get_remote_url
 )
 from ..notifications import play_sound, send_notification
 
@@ -45,6 +45,10 @@ class RepoTabSyncMixin:
         code, _, err = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
         if code != 0:
             self.log_msg(f"ERROR fetch: {err}")
+            url = get_remote_url(self.remote, cwd=self.repo_path, git=self.git)
+            if url:
+                self.log_msg(f"  remote URL: {url}")
+            self.log_msg(f"  repo path : {self.repo_path}")
             self.state_label.configure(text="ERROR")
             self.stop_polling()
             return

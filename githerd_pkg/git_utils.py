@@ -10,8 +10,13 @@ import subprocess
 from .config import DEFAULT_REPO_CONFIG
 
 
-def run_git(cmd, cwd=None):
-    """Run a git command and return (returncode, stdout, stderr)."""
+def run_git(cmd, cwd=None, timeout=30):
+    """Run a git command and return (returncode, stdout, stderr).
+
+    On timeout, the partial stderr captured before the kill is included
+    in the returned stderr string so the caller can show the actual
+    network/auth failure git was reporting.
+    """
     try:
         p = subprocess.run(
             cmd,
@@ -19,11 +24,21 @@ def run_git(cmd, cwd=None):
             stderr=subprocess.PIPE,
             text=True,
             cwd=cwd,
-            timeout=30
+            timeout=timeout
         )
         return p.returncode, p.stdout.strip(), p.stderr.strip()
-    except subprocess.TimeoutExpired:
-        return 1, "", "Timeout"
+    except subprocess.TimeoutExpired as e:
+        partial = ""
+        if e.stderr:
+            try:
+                partial = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
+            except Exception:
+                partial = ""
+            partial = partial.strip()
+        msg = f"Timeout after {timeout}s"
+        if partial:
+            msg += f" — last stderr: {partial}"
+        return 1, "", msg
     except FileNotFoundError:
         return 1, "", f"Command not found: {cmd[0]}"
     except Exception as e:
@@ -123,21 +138,35 @@ def get_short_head(cwd=None, git="git"):
     return out.strip() if code == 0 else ""
 
 
-def check_git_health(repo_path, remote, main_branch, git="git"):
-    """Check if git is functional for this repository."""
-    code, _, err = run_git([git, "rev-parse", "--git-dir"], cwd=repo_path)
-    if code != 0:
-        return False, f"Not a Git repository: {err}"
+def get_remote_url(remote, cwd=None, git="git"):
+    """Return the URL configured for a remote, or empty string."""
+    code, out, _ = run_git([git, "remote", "get-url", remote], cwd=cwd)
+    return out.strip() if code == 0 else ""
 
-    code, out, err = run_git([git, "remote"], cwd=repo_path)
+
+def check_git_health(repo_path, remote, main_branch, git="git"):
+    """Check if git is functional for this repository.
+
+    Returns (ok: bool, error_message: str). Failure messages now
+    include the offending command and any stderr emitted by git so
+    the caller can show useful context in the log.
+    """
+    cmd = [git, "rev-parse", "--git-dir"]
+    code, _, err = run_git(cmd, cwd=repo_path)
     if code != 0:
-        return False, f"Git remote error: {err}"
+        return False, f"Not a Git repository ({' '.join(cmd)}): {err}"
+
+    cmd = [git, "remote"]
+    code, out, err = run_git(cmd, cwd=repo_path)
+    if code != 0:
+        return False, f"Git remote error ({' '.join(cmd)}): {err}"
     if remote not in out.splitlines():
         return False, f"Remote '{remote}' not found"
 
-    code, _, err = run_git([git, "fetch", remote, "--dry-run"], cwd=repo_path)
+    cmd = [git, "fetch", remote, "--dry-run"]
+    code, _, err = run_git(cmd, cwd=repo_path)
     if code != 0:
-        return False, f"Fetch failed: {err}"
+        return False, f"Fetch failed ({' '.join(cmd)}): {err}"
 
     return True, ""
 
