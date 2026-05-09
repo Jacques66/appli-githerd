@@ -367,12 +367,20 @@ class AppDialogsMixin:
         caller is expected to populate `vars_by_name`, then pack its
         Save/Cancel/Delete buttons into `btn_frame`.
         """
+        import os, sys
+        def trace(msg):
+            if os.environ.get("GITHERD_TRACE") == "1":
+                print(f"[DIALOG] {msg}", flush=True, file=sys.stderr)
+
+        trace("entering _branch_dialog_skeleton")
         try:
             branches = get_tracked_branches(tab.remote, tab.prefix,
                                             cwd=tab.repo_path, git=tab.git)
-        except Exception:
+        except Exception as e:
+            trace(f"get_tracked_branches raised: {e!r}")
             branches = []
         short_names = [b.replace(f"{tab.remote}/", "") for b in branches]
+        trace(f"branches={short_names}")
         if not short_names:
             messagebox.showinfo(
                 "No branches",
@@ -381,42 +389,57 @@ class AppDialogsMixin:
             )
             return None
 
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(title)
-        dialog.geometry(geometry)
-        dialog.transient(self)
-        dialog.resizable(False, False)
-        self.ensure_dialog_on_screen(dialog)
+        try:
+            dialog = ctk.CTkToplevel(self)
+            dialog.title(title)
+            dialog.geometry(geometry)
+            dialog.transient(self)
+            dialog.resizable(False, False)
+            self.ensure_dialog_on_screen(dialog)
+            trace("dialog created and on screen")
 
-        # Pack the button bar FIRST at the bottom so it claims its
-        # space before the (expand=True) content area takes the rest.
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(side="bottom", fill="x", padx=15, pady=(0, 15))
+            # Pack the button bar FIRST at the bottom so it claims its
+            # space before the (expand=True) content area takes the rest.
+            btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+            btn_frame.pack(side="bottom", fill="x", padx=15, pady=(0, 15))
+            trace("btn_frame packed")
 
-        outer = ctk.CTkFrame(dialog)
-        outer.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 0))
+            outer = ctk.CTkFrame(dialog)
+            outer.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 0))
+            trace("outer packed")
 
-        # Header row: master checkbox + live "(n/m)" counter label
-        header = ctk.CTkFrame(outer, fg_color="transparent")
-        header.pack(fill="x", padx=10, pady=(10, 6))
-        master_var = ctk.BooleanVar(value=False)
-        master = ctk.CTkCheckBox(header, text="Select all", variable=master_var)
-        master.pack(side="left")
-        counter_label = ctk.CTkLabel(header, text="(0/0)", text_color="gray")
-        counter_label.pack(side="left", padx=(8, 0))
-        # Tri-state visual via a tiny extra glyph label that flips between
-        # "" / "—" depending on aggregate state. Sits between the checkbox
-        # and the counter so the user sees mixed state at a glance.
-        mixed_glyph = ctk.CTkLabel(header, text="", width=14,
-                                    text_color="#fbbf24")
-        mixed_glyph.pack(side="left", padx=(4, 0))
-        master._gh_var = master_var
-        master._gh_counter = counter_label
-        master._gh_mixed = mixed_glyph
+            # Hardcoded sanity-check label: if THIS is invisible, the
+            # rendering pipeline is broken at a deeper level than CTk
+            # widgets — useful for diagnosis.
+            ctk.CTkLabel(
+                outer, text="DEBUG · dialog content area",
+                text_color="#ff5555",
+            ).pack(anchor="w", padx=10, pady=(10, 0))
+            trace("debug label packed")
 
-        # List of per-branch checkboxes (plain frame; long lists rare)
-        list_frame = ctk.CTkFrame(outer)
-        list_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+            # Header row: master checkbox + live "(n/m)" counter label
+            header = ctk.CTkFrame(outer, fg_color="transparent")
+            header.pack(fill="x", padx=10, pady=(6, 6))
+            master_var = ctk.BooleanVar(value=False)
+            master = ctk.CTkCheckBox(header, text="Select all", variable=master_var)
+            master.pack(side="left")
+            counter_label = ctk.CTkLabel(header, text="(0/0)", text_color="gray")
+            counter_label.pack(side="left", padx=(8, 0))
+            mixed_glyph = ctk.CTkLabel(header, text="", width=14,
+                                        text_color="#fbbf24")
+            mixed_glyph.pack(side="left", padx=(4, 0))
+            master._gh_var = master_var
+            master._gh_counter = counter_label
+            master._gh_mixed = mixed_glyph
+            trace("header + master packed")
+
+            # List of per-branch checkboxes
+            list_frame = ctk.CTkFrame(outer)
+            list_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+            trace("list_frame packed")
+        except Exception as e:
+            trace(f"SKELETON FAILED: {e!r}")
+            raise
 
         vars_by_name = {}
         return dialog, master, list_frame, vars_by_name, short_names, btn_frame
