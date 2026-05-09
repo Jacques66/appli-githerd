@@ -5,6 +5,7 @@ GitHerd — App dialogs mixin.
 Handles global settings, about, and help dialogs.
 """
 
+import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
@@ -12,7 +13,75 @@ from ..config import (
     load_global_settings, save_global_settings,
     APPEARANCE_MODES, COLOR_THEMES
 )
+from ..git_utils import get_tracked_branches, delete_remote_branch
 from ..resources import HELP_TEXT
+
+
+class TriStateCheckBox(ctk.CTkFrame):
+    """Click-to-toggle checkbox with three visual states.
+
+    States: 'off' (empty box), 'on' (✓), 'mixed' (—). The user can only
+    cycle between 'off' and 'on' by clicking; 'mixed' is set
+    programmatically via set_state() when child checkboxes diverge.
+    Clicking while 'mixed' or 'off' jumps to 'on'; clicking while 'on'
+    jumps to 'off'.
+    """
+
+    BOX = 14
+
+    def __init__(self, master, text="", command=None, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self._state = "off"
+        self._command = command
+        self._base_text = text
+
+        bg = "#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#dbdbdb"
+        self._canvas = tk.Canvas(self, width=self.BOX + 2, height=self.BOX + 2,
+                                 highlightthickness=0, bg=bg)
+        self._canvas.pack(side="left", padx=(0, 6), pady=2)
+        self._label = ctk.CTkLabel(self, text=text, anchor="w")
+        self._label.pack(side="left")
+
+        for w in (self, self._canvas, self._label):
+            w.bind("<Button-1>", self._on_click)
+
+        self._draw()
+
+    def _draw(self):
+        c = self._canvas
+        c.delete("all")
+        # Outer box
+        c.create_rectangle(1, 1, self.BOX, self.BOX,
+                           outline="#cccccc", width=1)
+        if self._state == "on":
+            # Check mark
+            c.create_line(3, 7, 6, 11, fill="#4ade80", width=2)
+            c.create_line(6, 11, 12, 4, fill="#4ade80", width=2)
+        elif self._state == "mixed":
+            # Horizontal dash
+            c.create_line(3, self.BOX // 2, self.BOX - 2, self.BOX // 2,
+                          fill="#fbbf24", width=2)
+
+    def _on_click(self, _event=None):
+        self._state = "off" if self._state == "on" else "on"
+        self._draw()
+        if self._command is not None:
+            self._command(self._state)
+
+    def get(self):
+        return self._state
+
+    def set_state(self, state, fire=False):
+        if state not in ("off", "on", "mixed"):
+            return
+        self._state = state
+        self._draw()
+        if fire and self._command is not None:
+            self._command(self._state)
+
+    def set_count(self, n, m):
+        suffix = f" ({n}/{m})" if m else ""
+        self._label.configure(text=f"{self._base_text}{suffix}")
 
 
 class AppDialogsMixin:
@@ -352,3 +421,208 @@ class AppDialogsMixin:
 
             self.add_repo(path)
             self.save_current_repos()
+
+    # ------------------------------------------------------------------
+    # Branch sync / delete dialogs (replace the inline Repository menu
+    # branch lists)
+    # ------------------------------------------------------------------
+
+    def _branch_dialog_skeleton(self, tab, title, geometry):
+        """Build the common parts of the two branch dialogs.
+
+        Returns (dialog, master, vars, name_for_var, branches) or None
+        if there are no branches to show.
+        """
+        try:
+            branches = get_tracked_branches(tab.remote, tab.prefix,
+                                            cwd=tab.repo_path, git=tab.git)
+        except Exception:
+            branches = []
+        short_names = [b.replace(f"{tab.remote}/", "") for b in branches]
+        if not short_names:
+            messagebox.showinfo(
+                "No branches",
+                f"No branches matching '{tab.prefix}*' on {tab.remote}.",
+                parent=self,
+            )
+            return None
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.geometry(geometry)
+        dialog.transient(self)
+        dialog.resizable(False, True)
+        self.ensure_dialog_on_screen(dialog)
+
+        outer = ctk.CTkFrame(dialog)
+        outer.pack(fill="both", expand=True, padx=15, pady=15)
+
+        # Header: TriStateCheckBox + counter
+        master = TriStateCheckBox(outer, text="Select all")
+        master.pack(anchor="w", pady=(0, 8))
+
+        # Scrollable list
+        scroll = ctk.CTkScrollableFrame(outer, height=320)
+        scroll.pack(fill="both", expand=True)
+
+        vars_by_name = {}
+        return dialog, master, scroll, vars_by_name, short_names
+
+    def show_branch_sync_dialog(self, tab):
+        """Bulk toggle which branches participate in sync.
+
+        Save / Cancel explicit; Esc cancels.
+        """
+        skel = self._branch_dialog_skeleton(
+            tab, f"Sync branches — {tab.tab_name}", "440x460"
+        )
+        if skel is None:
+            return
+        dialog, master, scroll, vars_by_name, short_names = skel
+
+        settings = load_global_settings()
+        branch_states = settings.get("branch_update_enabled", {}).get(
+            str(tab.repo_path), {}
+        )
+        default_enabled = settings.get("sync_new_branches_by_default", False)
+
+        def recompute_master():
+            n = sum(1 for v in vars_by_name.values() if v.get())
+            m = len(vars_by_name)
+            if n == 0:
+                master.set_state("off")
+            elif n == m:
+                master.set_state("on")
+            else:
+                master.set_state("mixed")
+            master.set_count(n, m)
+
+        for name in short_names:
+            v = ctk.BooleanVar(
+                value=branch_states.get(name, default_enabled)
+            )
+            vars_by_name[name] = v
+            ctk.CTkCheckBox(
+                scroll, text=name, variable=v,
+                command=recompute_master,
+            ).pack(anchor="w", padx=4, pady=2)
+
+        def on_master(state):
+            target = state == "on"  # state already toggled by widget
+            for v in vars_by_name.values():
+                v.set(target)
+            recompute_master()
+        master._command = on_master
+        recompute_master()
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
+
+        def save():
+            s = load_global_settings()
+            all_states = s.setdefault("branch_update_enabled", {})
+            repo_states = all_states.setdefault(str(tab.repo_path), {})
+            for name, var in vars_by_name.items():
+                repo_states[name] = bool(var.get())
+            save_global_settings(s)
+            self.update_repo_menu()
+            dialog.destroy()
+
+        ctk.CTkButton(btn_frame, text="Save", command=save).pack(
+            side="left", padx=5
+        )
+        ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(
+            side="left", padx=5
+        )
+
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.wait_visibility()
+        dialog.grab_set()
+        dialog.focus_set()
+
+    def show_branch_delete_dialog(self, tab):
+        """Pick branches to delete remotely. Single batch confirmation.
+
+        In advanced_mode the confirmation dialog is skipped to match
+        the existing per-branch delete behavior in repo_tab/dialogs.py.
+        """
+        skel = self._branch_dialog_skeleton(
+            tab, f"Delete branches — {tab.tab_name}", "440x460"
+        )
+        if skel is None:
+            return
+        dialog, master, scroll, vars_by_name, short_names = skel
+
+        def recompute_master():
+            n = sum(1 for v in vars_by_name.values() if v.get())
+            m = len(vars_by_name)
+            if n == 0:
+                master.set_state("off")
+            elif n == m:
+                master.set_state("on")
+            else:
+                master.set_state("mixed")
+            master.set_count(n, m)
+
+        for name in short_names:
+            v = ctk.BooleanVar(value=False)
+            vars_by_name[name] = v
+            ctk.CTkCheckBox(
+                scroll, text=name, variable=v,
+                command=recompute_master,
+            ).pack(anchor="w", padx=4, pady=2)
+
+        def on_master(state):
+            target = state == "on"
+            for v in vars_by_name.values():
+                v.set(target)
+            recompute_master()
+        master._command = on_master
+        recompute_master()
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
+
+        def do_delete():
+            selected = [name for name, v in vars_by_name.items() if v.get()]
+            if not selected:
+                return
+            if not self.global_settings.get("advanced_mode", False):
+                listing = "\n".join(f"  • {n}" for n in selected)
+                if not messagebox.askyesno(
+                    "Confirm deletion",
+                    f"Delete {len(selected)} remote branch(es)?\n\n"
+                    f"{listing}\n\nThis action is irreversible.",
+                    parent=dialog,
+                ):
+                    return
+            errors = 0
+            for name in selected:
+                tab.log_msg(f"Deleting {name}…")
+                ok, err = delete_remote_branch(
+                    name, tab.remote, cwd=tab.repo_path, git=tab.git
+                )
+                if ok:
+                    tab.log_msg(f"Branch {name} deleted")
+                else:
+                    tab.log_msg(f"Error deleting {name}: {err}")
+                    errors += 1
+            self.update_repo_menu()
+            dialog.destroy()
+            if errors == 0:
+                tab.manual_sync()
+
+        ctk.CTkButton(
+            btn_frame, text="Delete selected", command=do_delete,
+            fg_color="#8B0000", hover_color="#CD5C5C",
+        ).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(
+            side="left", padx=5
+        )
+
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.wait_visibility()
+        dialog.grab_set()
+        dialog.focus_set()

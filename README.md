@@ -125,25 +125,26 @@ When polling is active on a tab, a tiny countdown (e.g. `42s`) appears in the bo
 The **Repository** menu changes dynamically based on the currently selected tab:
 - **Options / Open folder** — Edit repo settings, open in file manager
 - **Sync now / Polling** — Control sync operations
-- **Branch toggles** — Enable/disable sync per branch (✓ = enabled)
-- **Delete branches** — Remove tracked branches
+- **Sync branches…** — Open the bulk per-branch sync toggle dialog
+- **Delete branches…** — Open the bulk branch-deletion dialog
 - **Close** — Close current tab
 - **Inactive repos (N)** — Submenu listing hidden repos; click to reactivate
 
-#### Per-branch sync toggle
+#### Per-branch sync toggle dialog
 
-Each tracked branch appears in the menu with a checkmark indicating its sync status:
-- `✓ claude/branch-name` — Branch sync **enabled**
-- `   claude/branch-name` — Branch sync **disabled** (default for new branches)
+Opened via **Repository → Sync branches…**. Lists every tracked branch with a checkbox, plus a `Select all (n/m)` master with a tri-state visual:
 
-Click on a branch to toggle its status. Disabled branches are:
-- Excluded from all sync operations (including push after merge)
-- Still visible in the menu for re-enabling
-- Persisted across restarts in `settings.json`
+- empty box — none selected
+- ✓ — all selected
+- — — mixed (some selected, some not)
 
-**Note:** Newly discovered branches are **disabled by default**. Enable "Enable sync for newly discovered branches" in Settings to change this behavior.
+Clicking the master while it shows `mixed` or empty enables every branch; clicking it while it shows ✓ disables every branch. Toggle individual checkboxes freely; the master glyph and counter update live. Click **Save** to persist the selection to `settings.json` (under `branch_update_enabled`), or **Cancel** / `Esc` to discard.
 
-Non-existent branches are automatically cleaned from persistence on each sync.
+Disabled branches are excluded from all sync operations (including push after merge) and persist across restarts. Newly discovered branches are **disabled by default**; enable *"Enable sync for newly discovered branches"* in Settings to change this. Non-existent branches are automatically cleaned from persistence on each sync.
+
+#### Branch deletion dialog
+
+Opened via **Repository → Delete branches…**. Same layout as the sync dialog, but the list starts unchecked. Tick the branches to delete and click the red **Delete selected** button — a single confirmation summarizes the count and names before the actual `git push <remote> --delete` is issued for each. In **advanced mode** the confirmation step is skipped. Per-branch results are written to the tab's log; a `Sync now` is triggered at the end if every deletion succeeded.
 
 ### Configuration
 

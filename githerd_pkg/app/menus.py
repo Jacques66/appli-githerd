@@ -9,7 +9,6 @@ import tkinter as tk
 import tkinter.font as tkfont
 import customtkinter as ctk
 
-from ..config import load_global_settings, save_global_settings
 from ..git_utils import get_tracked_branches
 
 
@@ -141,30 +140,18 @@ class AppMenusMixin:
         except:
             branches = []
 
-        # Branch update toggles (enabled/disabled)
-        if branches:
-            settings = load_global_settings()
-            branch_states = settings.get("branch_update_enabled", {}).get(str(tab.repo_path), {})
-            default_enabled = settings.get("sync_new_branches_by_default", False)
-            for b in branches:
-                short_name = b.replace(f"{tab.remote}/", "")
-                is_enabled = branch_states.get(short_name, default_enabled)
-                checkmark = "✓ " if is_enabled else "   "
-                self.repo_menu.add_command(
-                    label=f"{checkmark}{short_name}",
-                    command=lambda bn=short_name: self.toggle_branch_update(tab.repo_path, bn)
-                )
-            self.repo_menu.add_separator()
-
-        # Delete branch options
-        if branches:
-            for b in branches:
-                short_name = b.replace(f"{tab.remote}/", "")
-                self.repo_menu.add_command(
-                    label=f"Delete {short_name}",
-                    command=lambda bn=short_name: tab.delete_branch(bn)
-                )
-            self.repo_menu.add_separator()
+        # Branch operations: open the two dedicated dialogs.
+        self.repo_menu.add_command(
+            label="Sync branches…",
+            command=lambda t=tab: self.show_branch_sync_dialog(t),
+            state="normal" if branches else "disabled",
+        )
+        self.repo_menu.add_command(
+            label="Delete branches…",
+            command=lambda t=tab: self.show_branch_delete_dialog(t),
+            state="normal" if branches else "disabled",
+        )
+        self.repo_menu.add_separator()
 
         # Close tab
         self.repo_menu.add_command(label="Close", command=self.close_current_tab)
@@ -190,16 +177,3 @@ class AppMenusMixin:
                 menu=inactive_menu
             )
 
-    def toggle_branch_update(self, repo_path, branch_name):
-        """Toggle branch update enabled/disabled state and save to settings."""
-        settings = load_global_settings()
-        branch_states = settings.setdefault("branch_update_enabled", {})
-        repo_states = branch_states.setdefault(str(repo_path), {})
-
-        # Toggle: use sync_new_branches_by_default as default value
-        default_enabled = settings.get("sync_new_branches_by_default", False)
-        current = repo_states.get(branch_name, default_enabled)
-        repo_states[branch_name] = not current
-
-        save_global_settings(settings)
-        self.update_repo_menu()
