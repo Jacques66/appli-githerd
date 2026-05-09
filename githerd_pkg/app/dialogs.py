@@ -390,13 +390,22 @@ class AppDialogsMixin:
             return None
 
         try:
+            # Mirror the *exact* ordering of show_global_settings, which
+            # is known to render children correctly: title/geometry/
+            # transient/wait_visibility/grab_set/resizable, THEN add
+            # children. ensure_dialog_on_screen is called last because
+            # it needs the dialog already mapped to query winfo_*.
             dialog = ctk.CTkToplevel(self)
             dialog.title(title)
             dialog.geometry(geometry)
             dialog.transient(self)
+            trace("toplevel + transient")
+            dialog.wait_visibility()
+            trace("wait_visibility returned")
+            dialog.grab_set()
             dialog.resizable(False, False)
             self.ensure_dialog_on_screen(dialog)
-            trace("dialog created and on screen")
+            trace("dialog on screen")
 
             # Pack the button bar FIRST at the bottom so it claims its
             # space before the (expand=True) content area takes the rest.
@@ -527,9 +536,6 @@ class AppDialogsMixin:
         )
 
         dialog.bind("<Escape>", lambda e: dialog.destroy())
-        dialog.update_idletasks()
-        dialog.wait_visibility()
-        dialog.grab_set()
         dialog.focus_set()
 
     def show_branch_delete_dialog(self, tab):
@@ -595,7 +601,4 @@ class AppDialogsMixin:
         )
 
         dialog.bind("<Escape>", lambda e: dialog.destroy())
-        dialog.update_idletasks()
-        dialog.wait_visibility()
-        dialog.grab_set()
         dialog.focus_set()
