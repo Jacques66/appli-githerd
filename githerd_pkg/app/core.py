@@ -57,13 +57,13 @@ class AppCoreMixin:
             pass
         self.after(30, self._drain_ui_queue)
 
-    def record_event(self, repo_alias, commit_hash=""):
+    def record_event(self, repo_alias, commit_hash="", branch=""):
         """Record a meaningful sync event for the global status bar.
 
         Thread-safe: the deque append is atomic in CPython, and the
         widget refresh is marshalled to the main thread via ui_call.
         """
-        self.recent_events.appendleft((datetime.now(), repo_alias, commit_hash))
+        self.recent_events.appendleft((datetime.now(), repo_alias, commit_hash, branch))
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):
@@ -77,7 +77,8 @@ class AppCoreMixin:
             return
         entries = list(reversed(self.recent_events))  # oldest first, newest last
         last_idx = len(entries) - 1
-        for i, (ts, tab_name, commit_hash) in enumerate(entries):
+        for i, entry in enumerate(entries):
+            ts, tab_name, commit_hash = entry[0], entry[1], entry[2]
             path = self.tab_paths.get(tab_name)
             display = self.get_tab_display_name(path) if path else tab_name
             text = f"{ts.strftime('%H:%M:%S')} {display}"
@@ -118,28 +119,36 @@ class AppCoreMixin:
         self.status_bar_inner.bind("<Button-1>", lambda e: self.show_recent_events_popup())
 
     def show_recent_events_popup(self):
-        """Open a Toplevel listing the last N recorded events."""
+        """Open a Toplevel listing the last N recorded events. ESC closes."""
         import tkinter as tk
         if not self.recent_events:
             return
         popup = ctk.CTkToplevel(self)
         popup.title("Recent sync activity")
-        popup.geometry("520x240")
+        popup.geometry("600x260")
         popup.transient(self)
+        popup.bind("<Escape>", lambda e: popup.destroy())
+        popup.focus_set()
 
         frame = ctk.CTkFrame(popup, fg_color="transparent")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         text = ctk.CTkTextbox(frame, font=ctk.CTkFont(family="Consolas", size=12))
         text.pack(fill="both", expand=True)
-        for ts, tab_name, commit_hash in self.recent_events:
+        for entry in self.recent_events:
+            ts, tab_name = entry[0], entry[1]
+            commit_hash = entry[2] if len(entry) > 2 else ""
+            branch = entry[3] if len(entry) > 3 else ""
             path = self.tab_paths.get(tab_name)
             display = self.get_tab_display_name(path) if path else tab_name
-            line = f"{ts.strftime('%H:%M:%S')}  {display}"
+            line = f"{ts.strftime('%H:%M:%S')}  {display:<14}"
             if commit_hash:
-                line += f"  {commit_hash}"
+                line += f"  {commit_hash:<10}"
+            if branch:
+                line += f"  {branch}"
             text.insert("end", line + "\n")
         text.configure(state="disabled")
+        text.bind("<Escape>", lambda e: popup.destroy())
 
         ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
 

@@ -117,15 +117,16 @@ class RepoTabPollingMixin:
                 else:
                     msg = f"Multiple branches: {', '.join(all_names)}"
 
+                stop_branches = ", ".join(all_names)
                 if disjoint:
                     self.state_label.configure(text="STOP — Merge possible")
                     self.info_label.configure(text=f"Disjoint files. {msg}")
                     self.after(100, self.show_merge_button)
-                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git))
+                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
                 else:
                     self.state_label.configure(text="STOP — Human action required")
                     self.info_label.configure(text=msg)
-                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git))
+                    self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
 
                 self.after(0, lambda: self.app.update_tab_color(self))
 
