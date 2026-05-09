@@ -5,7 +5,6 @@ GitHerd — App dialogs mixin.
 Handles global settings, about, and help dialogs.
 """
 
-import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
@@ -15,73 +14,6 @@ from ..config import (
 )
 from ..git_utils import get_tracked_branches, delete_remote_branch
 from ..resources import HELP_TEXT
-
-
-class TriStateCheckBox(ctk.CTkFrame):
-    """Click-to-toggle checkbox with three visual states.
-
-    States: 'off' (empty box), 'on' (✓), 'mixed' (—). The user can only
-    cycle between 'off' and 'on' by clicking; 'mixed' is set
-    programmatically via set_state() when child checkboxes diverge.
-    Clicking while 'mixed' or 'off' jumps to 'on'; clicking while 'on'
-    jumps to 'off'.
-    """
-
-    BOX = 14
-
-    def __init__(self, master, text="", command=None, **kwargs):
-        super().__init__(master, fg_color="transparent", **kwargs)
-        self._state = "off"
-        self._command = command
-        self._base_text = text
-
-        bg = "#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#dbdbdb"
-        self._canvas = tk.Canvas(self, width=self.BOX + 2, height=self.BOX + 2,
-                                 highlightthickness=0, bg=bg)
-        self._canvas.pack(side="left", padx=(0, 6), pady=2)
-        self._label = ctk.CTkLabel(self, text=text, anchor="w")
-        self._label.pack(side="left")
-
-        for w in (self, self._canvas, self._label):
-            w.bind("<Button-1>", self._on_click)
-
-        self._draw()
-
-    def _draw(self):
-        c = self._canvas
-        c.delete("all")
-        # Outer box
-        c.create_rectangle(1, 1, self.BOX, self.BOX,
-                           outline="#cccccc", width=1)
-        if self._state == "on":
-            # Check mark
-            c.create_line(3, 7, 6, 11, fill="#4ade80", width=2)
-            c.create_line(6, 11, 12, 4, fill="#4ade80", width=2)
-        elif self._state == "mixed":
-            # Horizontal dash
-            c.create_line(3, self.BOX // 2, self.BOX - 2, self.BOX // 2,
-                          fill="#fbbf24", width=2)
-
-    def _on_click(self, _event=None):
-        self._state = "off" if self._state == "on" else "on"
-        self._draw()
-        if self._command is not None:
-            self._command(self._state)
-
-    def get(self):
-        return self._state
-
-    def set_state(self, state, fire=False):
-        if state not in ("off", "on", "mixed"):
-            return
-        self._state = state
-        self._draw()
-        if fire and self._command is not None:
-            self._command(self._state)
-
-    def set_count(self, n, m):
-        suffix = f" ({n}/{m})" if m else ""
-        self._label.configure(text=f"{self._base_text}{suffix}")
 
 
 class AppDialogsMixin:
@@ -464,16 +396,63 @@ class AppDialogsMixin:
         outer = ctk.CTkFrame(dialog)
         outer.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 0))
 
-        # Header: TriStateCheckBox + live counter
-        master = TriStateCheckBox(outer, text="Select all")
-        master.pack(anchor="w", padx=10, pady=(10, 6))
+        # Header row: master checkbox + live "(n/m)" counter label
+        header = ctk.CTkFrame(outer, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=(10, 6))
+        master_var = ctk.BooleanVar(value=False)
+        master = ctk.CTkCheckBox(header, text="Select all", variable=master_var)
+        master.pack(side="left")
+        counter_label = ctk.CTkLabel(header, text="(0/0)", text_color="gray")
+        counter_label.pack(side="left", padx=(8, 0))
+        # Tri-state visual via a tiny extra glyph label that flips between
+        # "" / "—" depending on aggregate state. Sits between the checkbox
+        # and the counter so the user sees mixed state at a glance.
+        mixed_glyph = ctk.CTkLabel(header, text="", width=14,
+                                    text_color="#fbbf24")
+        mixed_glyph.pack(side="left", padx=(4, 0))
+        master._gh_var = master_var
+        master._gh_counter = counter_label
+        master._gh_mixed = mixed_glyph
 
-        # Scrollable list of per-branch checkboxes
-        scroll = ctk.CTkScrollableFrame(outer)
-        scroll.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        # List of per-branch checkboxes (plain frame; long lists rare)
+        list_frame = ctk.CTkFrame(outer)
+        list_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         vars_by_name = {}
-        return dialog, master, scroll, vars_by_name, short_names, btn_frame
+        return dialog, master, list_frame, vars_by_name, short_names, btn_frame
+
+    def _wire_master_checkbox(self, master, vars_by_name):
+        """Bind master ↔ individual checkboxes with mixed-state visual.
+
+        Returns recompute_master() the caller invokes whenever an
+        individual var changes.
+        """
+        master_var = master._gh_var
+        counter = master._gh_counter
+        mixed_glyph = master._gh_mixed
+
+        def recompute_master():
+            n = sum(1 for v in vars_by_name.values() if v.get())
+            m = len(vars_by_name)
+            counter.configure(text=f"({n}/{m})")
+            if n == 0:
+                master_var.set(False)
+                mixed_glyph.configure(text="")
+            elif n == m:
+                master_var.set(True)
+                mixed_glyph.configure(text="")
+            else:
+                master_var.set(False)
+                mixed_glyph.configure(text="—")
+
+        def on_master_click():
+            target = master_var.get()
+            for v in vars_by_name.values():
+                v.set(target)
+            recompute_master()
+
+        master.configure(command=on_master_click)
+        return recompute_master
 
     def show_branch_sync_dialog(self, tab):
         """Bulk toggle which branches participate in sync.
@@ -485,7 +464,7 @@ class AppDialogsMixin:
         )
         if skel is None:
             return
-        dialog, master, scroll, vars_by_name, short_names, btn_frame = skel
+        dialog, master, list_frame, vars_by_name, short_names, btn_frame = skel
 
         settings = load_global_settings()
         branch_states = settings.get("branch_update_enabled", {}).get(
@@ -493,16 +472,7 @@ class AppDialogsMixin:
         )
         default_enabled = settings.get("sync_new_branches_by_default", False)
 
-        def recompute_master():
-            n = sum(1 for v in vars_by_name.values() if v.get())
-            m = len(vars_by_name)
-            if n == 0:
-                master.set_state("off")
-            elif n == m:
-                master.set_state("on")
-            else:
-                master.set_state("mixed")
-            master.set_count(n, m)
+        recompute_master = self._wire_master_checkbox(master, vars_by_name)
 
         for name in short_names:
             v = ctk.BooleanVar(
@@ -510,16 +480,10 @@ class AppDialogsMixin:
             )
             vars_by_name[name] = v
             ctk.CTkCheckBox(
-                scroll, text=name, variable=v,
+                list_frame, text=name, variable=v,
                 command=recompute_master,
-            ).pack(anchor="w", padx=4, pady=2)
+            ).pack(anchor="w", padx=8, pady=2)
 
-        def on_master(state):
-            target = state == "on"  # state already toggled by widget
-            for v in vars_by_name.values():
-                v.set(target)
-            recompute_master()
-        master._command = on_master
         recompute_master()
 
         def save():
@@ -556,33 +520,18 @@ class AppDialogsMixin:
         )
         if skel is None:
             return
-        dialog, master, scroll, vars_by_name, short_names, btn_frame = skel
+        dialog, master, list_frame, vars_by_name, short_names, btn_frame = skel
 
-        def recompute_master():
-            n = sum(1 for v in vars_by_name.values() if v.get())
-            m = len(vars_by_name)
-            if n == 0:
-                master.set_state("off")
-            elif n == m:
-                master.set_state("on")
-            else:
-                master.set_state("mixed")
-            master.set_count(n, m)
+        recompute_master = self._wire_master_checkbox(master, vars_by_name)
 
         for name in short_names:
             v = ctk.BooleanVar(value=False)
             vars_by_name[name] = v
             ctk.CTkCheckBox(
-                scroll, text=name, variable=v,
+                list_frame, text=name, variable=v,
                 command=recompute_master,
-            ).pack(anchor="w", padx=4, pady=2)
+            ).pack(anchor="w", padx=8, pady=2)
 
-        def on_master(state):
-            target = state == "on"
-            for v in vars_by_name.values():
-                v.set(target)
-            recompute_master()
-        master._command = on_master
         recompute_master()
 
         def do_delete():
