@@ -430,8 +430,10 @@ class AppDialogsMixin:
     def _branch_dialog_skeleton(self, tab, title, geometry):
         """Build the common parts of the two branch dialogs.
 
-        Returns (dialog, master, vars, name_for_var, branches) or None
-        if there are no branches to show.
+        Returns (dialog, master, scroll, vars_by_name, short_names,
+        btn_frame) or None if there are no branches to show. The
+        caller is expected to populate `vars_by_name`, then pack its
+        Save/Cancel/Delete buttons into `btn_frame`.
         """
         try:
             branches = get_tracked_branches(tab.remote, tab.prefix,
@@ -451,22 +453,27 @@ class AppDialogsMixin:
         dialog.title(title)
         dialog.geometry(geometry)
         dialog.transient(self)
-        dialog.resizable(False, True)
+        dialog.resizable(False, False)
         self.ensure_dialog_on_screen(dialog)
 
+        # Pack the button bar FIRST at the bottom so it claims its
+        # space before the (expand=True) content area takes the rest.
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(side="bottom", fill="x", padx=15, pady=(0, 15))
+
         outer = ctk.CTkFrame(dialog)
-        outer.pack(fill="both", expand=True, padx=15, pady=15)
+        outer.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 0))
 
-        # Header: TriStateCheckBox + counter
+        # Header: TriStateCheckBox + live counter
         master = TriStateCheckBox(outer, text="Select all")
-        master.pack(anchor="w", pady=(0, 8))
+        master.pack(anchor="w", padx=10, pady=(10, 6))
 
-        # Scrollable list
-        scroll = ctk.CTkScrollableFrame(outer, height=320)
-        scroll.pack(fill="both", expand=True)
+        # Scrollable list of per-branch checkboxes
+        scroll = ctk.CTkScrollableFrame(outer)
+        scroll.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         vars_by_name = {}
-        return dialog, master, scroll, vars_by_name, short_names
+        return dialog, master, scroll, vars_by_name, short_names, btn_frame
 
     def show_branch_sync_dialog(self, tab):
         """Bulk toggle which branches participate in sync.
@@ -474,11 +481,11 @@ class AppDialogsMixin:
         Save / Cancel explicit; Esc cancels.
         """
         skel = self._branch_dialog_skeleton(
-            tab, f"Sync branches — {tab.tab_name}", "440x460"
+            tab, f"Sync branches — {tab.tab_name}", "440x500"
         )
         if skel is None:
             return
-        dialog, master, scroll, vars_by_name, short_names = skel
+        dialog, master, scroll, vars_by_name, short_names, btn_frame = skel
 
         settings = load_global_settings()
         branch_states = settings.get("branch_update_enabled", {}).get(
@@ -515,10 +522,6 @@ class AppDialogsMixin:
         master._command = on_master
         recompute_master()
 
-        # Buttons
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
-
         def save():
             s = load_global_settings()
             all_states = s.setdefault("branch_update_enabled", {})
@@ -537,6 +540,7 @@ class AppDialogsMixin:
         )
 
         dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.update_idletasks()
         dialog.wait_visibility()
         dialog.grab_set()
         dialog.focus_set()
@@ -548,11 +552,11 @@ class AppDialogsMixin:
         the existing per-branch delete behavior in repo_tab/dialogs.py.
         """
         skel = self._branch_dialog_skeleton(
-            tab, f"Delete branches — {tab.tab_name}", "440x460"
+            tab, f"Delete branches — {tab.tab_name}", "440x500"
         )
         if skel is None:
             return
-        dialog, master, scroll, vars_by_name, short_names = skel
+        dialog, master, scroll, vars_by_name, short_names, btn_frame = skel
 
         def recompute_master():
             n = sum(1 for v in vars_by_name.values() if v.get())
@@ -580,10 +584,6 @@ class AppDialogsMixin:
             recompute_master()
         master._command = on_master
         recompute_master()
-
-        # Buttons
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
 
         def do_delete():
             selected = [name for name, v in vars_by_name.items() if v.get()]
@@ -623,6 +623,7 @@ class AppDialogsMixin:
         )
 
         dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.update_idletasks()
         dialog.wait_visibility()
         dialog.grab_set()
         dialog.focus_set()
