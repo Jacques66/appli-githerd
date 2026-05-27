@@ -381,3 +381,63 @@ class AppTabsMixin:
         """Get display name for a repo (alias or folder name)."""
         aliases = self.global_settings.get("tab_aliases", {})
         return aliases.get(repo_path, Path(repo_path).name)
+
+    def change_repo_directory(self, tab_name, new_path):
+        """Re-point an open tab to a different repo folder in place.
+
+        Migrates all path-keyed state (tab_paths, settings dicts,
+        button label) so the tab keeps working at the new location.
+        Returns True on success, False if validation failed.
+        """
+        from tkinter import messagebox
+
+        new_path = str(Path(new_path))
+        old_path = str(self.tab_paths.get(tab_name, ""))
+        if not old_path or new_path == old_path:
+            return True
+
+        tab = self.tabs.get(tab_name)
+        if tab is None:
+            return False
+
+        git = self.global_settings.get("git_binary", "git")
+        if not is_git_repo(new_path, git):
+            messagebox.showerror(
+                "Error", f"'{new_path}' is not a valid Git repository.",
+                parent=self,
+            )
+            return False
+        if new_path in self.tab_paths.values():
+            messagebox.showinfo(
+                "Info", "This repository is already open in another tab.",
+                parent=self,
+            )
+            return False
+
+        # Update the live tab instance (sync/polling read these directly)
+        tab.repo_path = Path(new_path)
+        tab.base_tab_name = Path(new_path).name
+
+        # Update App bookkeeping
+        self.tab_paths[tab_name] = new_path
+
+        # Migrate path-keyed settings
+        s = self.global_settings
+        for key in ("branch_update_enabled", "tab_aliases", "polling_states"):
+            d = s.get(key)
+            if isinstance(d, dict) and old_path in d:
+                d[new_path] = d.pop(old_path)
+        hidden = s.get("hidden_repos", [])
+        if old_path in hidden:
+            hidden[hidden.index(old_path)] = new_path
+        save_global_settings(s)
+
+        # Refresh the tab button label (alias may have migrated)
+        if tab_name in self.tab_buttons:
+            self.tab_buttons[tab_name].configure(
+                text=self.get_tab_display_name(new_path)
+            )
+
+        self.save_current_repos()
+        return True
+

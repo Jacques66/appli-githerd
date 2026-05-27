@@ -178,12 +178,13 @@ When enabled, the UI is simplified:
 
 | Setting | Description |
 |---------|-------------|
+| Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings |
 | Remote | Git remote name (auto-detected) |
 | Main branch | Main branch name (auto-detected) |
 | Branch prefix | Prefix of branches to track (default: `claude/`) |
 | Interval | Polling interval in seconds (default: `60`) |
 
-Stored in `<repo>/githerd.toml`
+All settings except Directory are stored in `<repo>/githerd.toml`. Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
 
 ### Config file format
 

@@ -6,6 +6,7 @@ Handles configuration dialog and other repo-specific dialogs.
 """
 
 import subprocess
+from pathlib import Path
 from tkinter import messagebox, filedialog
 from datetime import datetime
 import customtkinter as ctk
@@ -21,7 +22,7 @@ class RepoTabDialogsMixin:
         """Show repository configuration dialog."""
         dialog = ctk.CTkToplevel(self.app)
         dialog.title(f"Options — {self.repo_path.name}")
-        dialog.geometry("450x380")
+        dialog.geometry("520x440")
         dialog.transient(self.app)
         dialog.resizable(False, False)
         self.app.ensure_dialog_on_screen(dialog)
@@ -33,35 +34,55 @@ class RepoTabDialogsMixin:
         # Section title
         ctk.CTkLabel(main_frame, text="Repository settings",
                     font=ctk.CTkFont(weight="bold")).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=15, pady=(15, 10))
+            row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(15, 10))
+
+        # Directory (re-point the tab to a different folder)
+        ctk.CTkLabel(main_frame, text="Directory:").grid(
+            row=1, column=0, sticky="w", padx=15, pady=8)
+        dir_var = ctk.StringVar(value=str(self.repo_path))
+        dir_entry = ctk.CTkEntry(main_frame, textvariable=dir_var, width=250)
+        dir_entry.grid(row=1, column=1, sticky="ew", padx=(10, 5), pady=8)
+
+        def browse_dir():
+            path = filedialog.askdirectory(
+                title="Select repository folder",
+                initialdir=str(self.repo_path),
+                mustexist=True,
+            )
+            if path:
+                dir_var.set(path)
+
+        ctk.CTkButton(main_frame, text="Browse…", width=80,
+                      command=browse_dir).grid(
+            row=1, column=2, sticky="w", padx=(0, 15), pady=8)
 
         # Remote
         ctk.CTkLabel(main_frame, text="Remote:").grid(
-            row=1, column=0, sticky="w", padx=15, pady=8)
+            row=2, column=0, sticky="w", padx=15, pady=8)
         remote_entry = ctk.CTkEntry(main_frame, width=250)
         remote_entry.insert(0, self.remote)
-        remote_entry.grid(row=1, column=1, sticky="ew", padx=(10, 15), pady=8)
+        remote_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Main branch
         ctk.CTkLabel(main_frame, text="Main branch:").grid(
-            row=2, column=0, sticky="w", padx=15, pady=8)
+            row=3, column=0, sticky="w", padx=15, pady=8)
         main_entry = ctk.CTkEntry(main_frame, width=250)
         main_entry.insert(0, self.main)
-        main_entry.grid(row=2, column=1, sticky="ew", padx=(10, 15), pady=8)
+        main_entry.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Branch prefix
         ctk.CTkLabel(main_frame, text="Branch prefix:").grid(
-            row=3, column=0, sticky="w", padx=15, pady=8)
+            row=4, column=0, sticky="w", padx=15, pady=8)
         prefix_entry = ctk.CTkEntry(main_frame, width=250)
         prefix_entry.insert(0, self.prefix)
-        prefix_entry.grid(row=3, column=1, sticky="ew", padx=(10, 15), pady=8)
+        prefix_entry.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Interval
         ctk.CTkLabel(main_frame, text="Interval (sec):").grid(
-            row=4, column=0, sticky="w", padx=15, pady=8)
+            row=5, column=0, sticky="w", padx=15, pady=8)
         interval_entry = ctk.CTkEntry(main_frame, width=100)
         interval_entry.insert(0, str(self.interval))
-        interval_entry.grid(row=4, column=1, sticky="w", padx=(10, 15), pady=8)
+        interval_entry.grid(row=5, column=1, sticky="w", padx=(10, 15), pady=8)
 
         main_frame.columnconfigure(1, weight=1)
 
@@ -70,6 +91,13 @@ class RepoTabDialogsMixin:
         btn_frame.pack(fill="x", padx=15, pady=15)
 
         def save_config():
+            # Re-point directory first so the config is written to the
+            # new location and path-keyed state is migrated.
+            new_dir = dir_var.get().strip()
+            if new_dir and str(Path(new_dir)) != str(self.repo_path):
+                if not self.app.change_repo_directory(self.tab_name, new_dir):
+                    return  # validation error already surfaced
+
             self.remote = remote_entry.get().strip()
             self.main = main_entry.get().strip()
             self.prefix = prefix_entry.get().strip()
