@@ -24,6 +24,8 @@ class AppTabsMixin:
         """Return background state for tab."""
         if not tab.git_healthy:
             return "red"
+        if getattr(tab, "sync_error", False):
+            return "red"
         if tab.pending_branches and not tab.polling:
             return "red"
         if tab.polling:

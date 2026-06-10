@@ -190,15 +190,22 @@ class RepoTabUIMixin:
         self.btn_close.pack(side="right", padx=6)
 
     def toggle_log(self):
-        """Toggle log visibility."""
-        # Force geometry update and get position BEFORE any changes
+        """Toggle log visibility.
+
+        Only the window's HEIGHT is changed — the current width is
+        preserved so a user-resized window keeps its width across log
+        toggles.
+        """
+        # Force geometry update and read current size+position BEFORE
+        # any pack changes.
         self.app.update_idletasks()
         geo = self.app.geometry()
-        match = re.match(r'(\d+)x(\d+)\+(\d+)\+(\d+)', geo)
+        match = re.match(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)', geo)
         if match:
+            cur_w = match.group(1)
             x, y = match.group(3), match.group(4)
         else:
-            x, y = 100, 100
+            cur_w, x, y = "710", "100", "100"
 
         # Collapsed height: 189px normal, 151px advanced (+24 for status bar)
         collapsed_height = (151 if self.advanced_mode else 189) + 24
@@ -206,11 +213,11 @@ class RepoTabUIMixin:
         if self.log_visible:
             self.log_frame.pack_forget()
             self.btn_toggle_log.configure(text="▶ Log")
-            self.app.geometry(f"710x{collapsed_height}+{x}+{y}")
+            self.app.geometry(f"{cur_w}x{collapsed_height}+{x}+{y}")
         else:
             self.log_frame.pack(fill="both", expand=True, padx=10, pady=6)
             self.btn_toggle_log.configure(text="▼ Log")
-            self.app.geometry(f"710x774+{x}+{y}")
+            self.app.geometry(f"{cur_w}x774+{x}+{y}")
         self.log_visible = not self.log_visible
 
     def show_merge_button(self):

@@ -49,6 +49,9 @@ class RepoTabSyncMixin:
         self.state_label.configure(text="Sync…")
         self.hide_merge_button()
         self.pending_branches = []
+        # Clear any prior sync-error flag — the tab will go back to red
+        # below if this sync hits another failure.
+        self.sync_error = False
 
         self.log_msg(f"git fetch {self.remote}")
         code, _, err = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
@@ -59,6 +62,7 @@ class RepoTabSyncMixin:
                 self.log_msg(f"  remote URL: {url}")
             self.log_msg(f"  repo path : {self.repo_path}")
             self.state_label.configure(text="ERROR")
+            self.sync_error = True
             self.stop_polling()
             return
 
@@ -81,6 +85,7 @@ class RepoTabSyncMixin:
             else:
                 self.log_msg(f"ERROR bootstrap push: {err}")
                 self.state_label.configure(text="ERROR")
+                self.sync_error = True
                 self.stop_polling()
             return
 
@@ -186,6 +191,7 @@ class RepoTabSyncMixin:
                     if code != 0:
                         self.log_msg(f"ERROR push {branch_name}: {err}")
                         self.state_label.configure(text="ERROR")
+                        self.sync_error = True
                         self.stop_polling()
                         return
                     self.log_msg(out if out else "  (ok)")
@@ -241,6 +247,7 @@ class RepoTabSyncMixin:
             self.log_msg(f"ERROR pull: {err}")
             self.state_label.configure(text="ERROR")
             self.info_label.configure(text=f"Pull failed: {err[:100]}")
+            self.sync_error = True
             self.stop_polling()
             return
         self.log_msg(out if out else "  (ok)")
@@ -269,6 +276,7 @@ class RepoTabSyncMixin:
         if code != 0:
             self.log_msg(f"ERROR push main: {err}")
             self.state_label.configure(text="ERROR")
+            self.sync_error = True
             self.stop_polling()
             return False
         self.log_msg(out if out else "  (ok)")
@@ -295,6 +303,7 @@ class RepoTabSyncMixin:
                 self.log_msg(f"ERROR push {target}: {err}")
                 self.state_label.configure(text="STOP — Push failed")
                 self.info_label.configure(text=f"Push to {target} failed")
+                self.sync_error = True
                 self.stop_polling()
                 return False
             self.log_msg(out if out else "  (ok)")
@@ -322,6 +331,7 @@ class RepoTabSyncMixin:
 
         self.state_label.configure(text="Merging…")
         self.hide_merge_button()
+        self.sync_error = False
 
         branches = self.pending_branches[:]
         self.log_msg(f"Merging {len(branches)} branches: {', '.join(branches)}")
@@ -337,6 +347,7 @@ class RepoTabSyncMixin:
                 self.state_label.configure(text="ERROR — Merge failed")
                 self.info_label.configure(text=f"Merge of {branch} failed")
                 run_git([self.git, "merge", "--abort"], cwd=self.repo_path)
+                self.sync_error = True
                 self.stop_polling()
                 return
             self.log_msg(out if out else "  (ok)")

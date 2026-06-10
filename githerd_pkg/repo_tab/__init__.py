@@ -50,6 +50,7 @@ class RepoTabContent(
         self.pending_branches = []
         self.git_healthy = True
         self.git_error = ""
+        self.sync_error = False  # red tab on mid-sync failures (pull/push refused, etc.)
         self.next_poll_time = 0
         self.countdown_job = None
         self.has_update = False
