@@ -64,6 +64,8 @@ githerd
 4. A `githerd.toml` config file is created with detected values
 5. A new tab opens with that repository
 
+If the chosen folder is already known to GitHerd — either currently open or in **Repository → Inactive repos** — the add is refused and a dialog names the existing entry (alias if set, otherwise folder name). Path comparison resolves symlinks and ignores trailing slashes.
+
 ### Managing tabs
 
 - **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)

@@ -382,6 +382,28 @@ class AppTabsMixin:
         aliases = self.global_settings.get("tab_aliases", {})
         return aliases.get(repo_path, Path(repo_path).name)
 
+    def find_known_repo(self, path):
+        """Return (existing_raw_path, kind) if `path` matches an
+        already-known repo, else None. `kind` is 'open' or 'hidden'.
+
+        Comparison resolves symlinks and strips trailing slashes so the
+        same repo addressed via different path forms is still caught.
+        """
+        def norm(p):
+            try:
+                return str(Path(p).resolve())
+            except Exception:
+                return str(p).rstrip("/\\")
+
+        target = norm(path)
+        for raw in self.tab_paths.values():
+            if norm(raw) == target:
+                return raw, "open"
+        for raw in self.global_settings.get("hidden_repos", []):
+            if norm(raw) == target:
+                return raw, "hidden"
+        return None
+
     def change_repo_directory(self, tab_name, new_path):
         """Re-point an open tab to a different repo folder in place.
 

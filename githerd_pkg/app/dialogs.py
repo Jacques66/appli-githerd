@@ -338,11 +338,19 @@ class AppDialogsMixin:
                     parent=self
                 )
                 return
-            if path in self.tab_paths.values():
+            known = self.find_known_repo(path)
+            if known is not None:
+                existing_raw, kind = known
+                name = self.get_tab_display_name(existing_raw)
+                if kind == "open":
+                    msg = f"This repository is already open as “{name}”."
+                else:
+                    msg = (
+                        f"This repository is already known as “{name}” "
+                        f"(currently in Repository → Inactive repos)."
+                    )
                 messagebox.showinfo(
-                    "Info",
-                    "This repository is already open.",
-                    parent=self
+                    "Repository already known", msg, parent=self,
                 )
                 return
 
