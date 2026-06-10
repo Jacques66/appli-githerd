@@ -41,7 +41,8 @@ DEFAULT_GLOBAL_SETTINGS = {
     "sync_new_branches_by_default": False,
     "hidden_repos": [],  # List of hidden (inactive) repo paths
     "tab_aliases": {},  # {repo_path: "alias"} for custom tab names
-    "recent_sync_limit": 5  # Number of recent meaningful syncs kept in the status bar
+    "recent_sync_limit": 5,  # Number of recent meaningful syncs kept in the status bar
+    "default_interval_seconds": 60  # Default polling interval (seconds) for newly added repos
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]

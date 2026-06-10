@@ -266,7 +266,15 @@ class AppCoreMixin:
 
     def on_close(self):
         """Handle window close."""
-        # Signal all threads to stop
+        # Snapshot window + polling state FIRST so save_window_state
+        # captures tab.polling=True for repos that were actively polling.
+        # If we flipped polling=False before saving (as the old code did),
+        # the persisted polling_states dict would be empty and the next
+        # startup's restore_polling would have nothing to restore.
+        self.save_window_state()
+        self.save_current_repos()
+
+        # Now signal all threads to stop
         for tab in self.tabs.values():
             if tab.polling:
                 tab.polling = False
@@ -276,12 +284,6 @@ class AppCoreMixin:
         for tab in self.tabs.values():
             tab.wait_for_polling_thread(timeout=30)
 
-        # Save last active tab
-        if self.tabs and self.current_tab:
-            self.global_settings["last_active_tab"] = self.current_tab
-            save_global_settings(self.global_settings)
-
-        self.save_current_repos()
         self.destroy()
 
     def get_current_tab(self):

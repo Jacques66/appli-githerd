@@ -19,20 +19,29 @@ class RepoTabSyncMixin:
     """Mixin for sync and merge operations."""
 
     def sync(self):
-        """Main sync entry point with lock."""
+        """Main sync entry point with lock.
+
+        Runs in a worker thread; UI mutations must be marshalled via
+        self.app.ui_call (self.after is not thread-safe in this Tcl
+        build).
+        """
         if not self.lock.acquire(blocking=False):
             return
         try:
             # Show sync indicator on tab
             self.syncing = True
-            self.after(0, lambda: self.app.update_tab_color(self))
+            self.app.ui_call(lambda: self.app.update_tab_color(self))
             self._do_sync()
         finally:
             # Hide sync indicator
             self.syncing = False
-            self.after(0, lambda: self.app.update_tab_color(self))
+            self.app.ui_call(lambda: self.app.update_tab_color(self))
             # Update Repository menu if this tab is active
-            self.after(0, lambda: self.app.update_repo_menu() if self.app.get_current_tab() == self else None)
+            self.app.ui_call(
+                lambda: self.app.update_repo_menu()
+                if self.app.get_current_tab() == self
+                else None
+            )
             self.lock.release()
 
     def _do_sync(self):
@@ -151,7 +160,7 @@ class RepoTabSyncMixin:
                     "New commit detected!",
                     "normal"
                 )
-            self.after(0, self._mark_if_not_active)
+            self.app.ui_call(self._mark_if_not_active)
 
         total_problematic = len(ahead_branches) + len(diverged_branches)
 
@@ -342,7 +351,7 @@ class RepoTabSyncMixin:
         self.log_msg("Merge completed successfully")
         self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), ", ".join(branches))
 
-        self.after(0, lambda: self.app.update_tab_color(self))
+        self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def manual_sync(self):
         """Trigger a manual sync."""

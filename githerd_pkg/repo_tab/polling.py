@@ -121,19 +121,19 @@ class RepoTabPollingMixin:
                 if disjoint:
                     self.state_label.configure(text="STOP — Merge possible")
                     self.info_label.configure(text=f"Disjoint files. {msg}")
-                    self.after(100, self.show_merge_button)
+                    self.app.ui_call(self.show_merge_button)
                     self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
                 else:
                     self.state_label.configure(text="STOP — Human action required")
                     self.info_label.configure(text=msg)
                     self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
 
-                self.after(0, lambda: self.app.update_tab_color(self))
+                self.app.ui_call(lambda: self.app.update_tab_color(self))
 
         except Exception as e:
             self.state_label.configure(text="ERROR")
             self.info_label.configure(text=str(e))
-            self.after(0, lambda: self.app.update_tab_color(self))
+            self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def polling_loop(self):
         """Polling loop running in its own thread.
@@ -188,11 +188,12 @@ class RepoTabPollingMixin:
         self.app.update_title()
 
     def stop_polling(self):
-        """Stop polling."""
+        """Stop polling. Thread-safe: callable from sync error paths
+        (worker thread) as well as menu callbacks (main thread)."""
         self.polling = False
-        self.btn_poll.configure(text="▶ Start polling")
-        self.stop_countdown()
-        self.after(0, lambda: self.app.update_tab_color(self))
+        self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
+        self.app.ui_call(self.stop_countdown)
+        self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def wait_for_polling_thread(self, timeout=None):
         """Wait for polling thread to finish.

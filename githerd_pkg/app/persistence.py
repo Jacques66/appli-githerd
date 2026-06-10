@@ -205,6 +205,12 @@ class AppPersistenceMixin:
 
             def do_restart():
                 dialog.destroy()
+                # Save state FIRST so polling_states captures tabs that
+                # were polling. Stopping polling sets tab.polling=False,
+                # so save_window_state must run before.
+                self.save_window_state()
+                self.save_current_repos()
+
                 # Signal all threads to stop
                 for tab in self.tabs.values():
                     if tab.polling:
@@ -220,8 +226,6 @@ class AppPersistenceMixin:
                     if any_alive:
                         self.after(500, wait_and_restart)
                     else:
-                        self.save_window_state()
-                        self.save_current_repos()
                         python = sys.executable
                         script = os.path.abspath(sys.argv[0])
                         self.destroy()

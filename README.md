@@ -184,7 +184,7 @@ When enabled, the UI is simplified:
 | Remote | Git remote name (auto-detected) |
 | Main branch | Main branch name (auto-detected) |
 | Branch prefix | Prefix of branches to track (default: `claude/`) |
-| Interval | Polling interval in seconds (default: `60`) |
+| Interval | Polling interval in seconds. The default for new repos is set in **Global Settings → Default polling interval (sec) for new repos** (default: `60`). Existing repos keep their own per-repo value. |
 
 All settings except Directory are stored in `<repo>/githerd.toml`. Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
 

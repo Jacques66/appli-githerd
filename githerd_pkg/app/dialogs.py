@@ -200,6 +200,14 @@ class AppDialogsMixin:
                          values=["3", "5", "10", "20"], width=80).grid(row=row, column=1, sticky="w", pady=6)
         row += 1
 
+        # Default polling interval for newly added repos
+        ctk.CTkLabel(main_frame, text="Default polling interval (sec) for new repos:").grid(
+            row=row, column=0, sticky="w", pady=6)
+        default_interval_entry = ctk.CTkEntry(main_frame, width=80)
+        default_interval_entry.insert(0, str(self.global_settings.get("default_interval_seconds", 60)))
+        default_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -224,6 +232,11 @@ class AppDialogsMixin:
                 new_recent_limit = 5
             self.global_settings["recent_sync_limit"] = new_recent_limit
             self._resize_recent_events(new_recent_limit)
+            try:
+                new_default_interval = max(1, int(default_interval_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_default_interval = 60
+            self.global_settings["default_interval_seconds"] = new_default_interval
 
             try:
                 save_global_settings(self.global_settings)
@@ -355,6 +368,12 @@ class AppDialogsMixin:
                 return
 
             detected = detect_repo_settings(path, git)
+            # Apply the user-configured default polling interval to
+            # newly added repos (only when no githerd.toml already
+            # exists — an existing config wins).
+            detected["interval_seconds"] = self.global_settings.get(
+                "default_interval_seconds", 60
+            )
             config_file = Path(path) / "githerd.toml"
             if not config_file.exists():
                 save_repo_config(path, detected)
