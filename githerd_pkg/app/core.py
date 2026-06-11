@@ -34,6 +34,9 @@ class AppCoreMixin:
         # Each entry: (datetime, repo_alias, message). Newest first.
         self._recent_events_limit = max(1, int(self.global_settings.get("recent_sync_limit", 5)))
         self.recent_events = deque(maxlen=self._recent_events_limit)
+        # Names of tabs that were polling when "Suspend all polling"
+        # was invoked. Empty when no suspend is pending.
+        self._suspended_polling = []
 
     def ui_call(self, fn):
         """Thread-safe: schedule fn() to run on the Tk main thread.
@@ -254,6 +257,11 @@ class AppCoreMixin:
                 self.update_tab_color(tab)
                 stopped += 1
 
+        # A "Stop all" wipes any pending Suspend snapshot — nothing to
+        # restore once everything is fully off.
+        self._suspended_polling = []
+        self._set_suspend_menu_label("Suspend all polling")
+
         self.update_title()
 
         if stopped > 0:
@@ -263,6 +271,42 @@ class AppCoreMixin:
                 f"{stopped} polling(s) stopped.",
                 parent=self
             ))
+
+    def suspend_or_restore_all_polling(self):
+        """Toggle: suspend currently polling tabs, or restore the
+        previous suspend snapshot. The menu entry label flips between
+        "Suspend all polling" and "Restore all polling" accordingly.
+        """
+        if not self._suspended_polling:
+            # Suspend phase — snapshot then stop
+            for tab_name, tab in self.tabs.items():
+                if tab.polling:
+                    self._suspended_polling.append(tab_name)
+                    tab.polling = False
+                    tab.stop_event.set()
+                    tab.stop_countdown()
+                    tab.btn_poll.configure(text="▶ Start polling")
+                    self.update_tab_color(tab)
+            if self._suspended_polling:
+                self._set_suspend_menu_label("Restore all polling")
+            self.update_title()
+        else:
+            # Restore phase — re-enable polling on snapshotted tabs
+            # that still exist and aren't already polling.
+            for tab_name in self._suspended_polling:
+                tab = self.tabs.get(tab_name)
+                if tab and not tab.polling and tab.git_healthy:
+                    tab.toggle_polling()
+            self._suspended_polling = []
+            self._set_suspend_menu_label("Suspend all polling")
+            self.update_title()
+
+    def _set_suspend_menu_label(self, label):
+        """Update the File menu's suspend/restore entry label."""
+        try:
+            self._file_menu.entryconfigure(self._suspend_menu_index, label=label)
+        except Exception:
+            pass
 
     def on_close(self):
         """Handle window close."""

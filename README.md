@@ -115,7 +115,7 @@ When polling is active on a tab, a tiny countdown (e.g. `42s`) appears in the bo
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+O` | Add a repository |
-| `Ctrl+S` | Stop all polling |
+| `Ctrl+S` | Stop all polling (the File menu also offers **Suspend all polling** — snapshots which repos were polling, stops them, and flips the entry to **Restore all polling** to relaunch the same set) |
 | `Ctrl+R` | Restart (if no action is active) |
 | `Ctrl+Q` | Quit |
 | `Ctrl+Tab` | Next tab |

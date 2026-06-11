@@ -47,6 +47,17 @@ class AppMenusMixin:
                              accelerator="Ctrl+O")
         file_menu.add_command(label="Stop all polling", command=self.stop_all_polling,
                              accelerator="Ctrl+S")
+        # Suspend / Restore \u2014 label flips depending on whether a
+        # suspend snapshot is currently pending.
+        suspend_label = (
+            "Restore all polling"
+            if getattr(self, "_suspended_polling", None)
+            else "Suspend all polling"
+        )
+        file_menu.add_command(label=suspend_label,
+                              command=self.suspend_or_restore_all_polling)
+        self._file_menu = file_menu
+        self._suspend_menu_index = file_menu.index("end")
         file_menu.add_separator()
         file_menu.add_command(label="Restart", command=self.restart_app,
                              accelerator="Ctrl+R")
