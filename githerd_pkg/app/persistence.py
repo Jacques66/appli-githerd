@@ -74,6 +74,7 @@ class AppPersistenceMixin:
         geom = self.geometry()
         match = re.match(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geom)
         if match:
+            self.global_settings["window_width"] = int(match.group(1))
             self.global_settings["window_x"] = int(match.group(3))
             self.global_settings["window_y"] = int(match.group(4))
 

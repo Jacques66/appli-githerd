@@ -71,8 +71,7 @@ If the chosen folder is already known to GitHerd — either currently open or in
 - **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)
 - **Right-click** on a tab to show the context menu:
   - **Run** — trigger an immediate sync for this repo
-  - **Options...** — open the repo configuration dialog
-  - **Rename tab...** — set a custom alias for the tab
+  - **Options...** — open the repo configuration dialog (also where the alias is edited)
   - **Hide tab** — same as middle-click
   - **Close** — remove the tab
 - Repositories are saved automatically and restored on next launch
@@ -81,10 +80,10 @@ If the chosen folder is already known to GitHerd — either currently open or in
 
 #### Tab renaming
 
-Right-click on any tab to rename it with a custom alias:
+The tab alias is set from **Options… → Alias**:
 - Aliases are persistent across restarts
 - Leave empty to reset to original folder name
-- Aliases appear in both the tab and the Inactive repos submenu
+- Aliases appear in both the tab button, the in-tab status area (bottom-right), and the Inactive repos submenu
 
 **Tab indicators (background colors):**
 - Green background = Polling active

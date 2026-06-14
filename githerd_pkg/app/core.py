@@ -167,20 +167,24 @@ class AppCoreMixin:
     def _init_window(self):
         """Initialize window geometry and position."""
         self.title("GitHerd")
+        # Restore the user's last width if known, otherwise the
+        # historical default of 710.
+        saved_w = self.global_settings.get("window_width")
+        width = saved_w if isinstance(saved_w, int) and saved_w > 0 else 710
         if self.global_settings.get("start_collapsed", False):
             advanced_mode = self.global_settings.get("advanced_mode", False)
             # +24px for the bottom status bar
             collapsed_height = (151 if advanced_mode else 189) + 24
-            self.geometry(f"710x{collapsed_height}")
+            self.geometry(f"{width}x{collapsed_height}")
         else:
-            self.geometry("710x774")
+            self.geometry(f"{width}x774")
 
-        # Restore window position if saved (after restart)
+        # Restore window position if saved
         saved_x = self.global_settings.get("window_x")
         saved_y = self.global_settings.get("window_y")
         if saved_x is not None and saved_y is not None:
             self.geometry(f"+{saved_x}+{saved_y}")
-            # Clean up after use
+            # Clean up after use (re-saved at next close/restart)
             del self.global_settings["window_x"]
             del self.global_settings["window_y"]
             save_global_settings(self.global_settings)

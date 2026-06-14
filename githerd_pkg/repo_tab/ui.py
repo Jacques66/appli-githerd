@@ -82,6 +82,16 @@ class RepoTabUIMixin:
         )
         self.countdown_label.pack(side="left", padx=10)
 
+        # Small tab-name marker in the bottom-right of the status area
+        self.tab_name_label = ctk.CTkLabel(
+            info_frame,
+            text="",
+            font=ctk.CTkFont(size=10),
+            text_color="gray",
+        )
+        self.tab_name_label.pack(side="right", padx=10)
+        self.refresh_tab_name_label()
+
         # Hidden buttons frame in advanced mode
         self.buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
         # Don't pack
@@ -131,6 +141,16 @@ class RepoTabUIMixin:
             text_color="gray"
         )
         self.countdown_label.pack(side="left", padx=10)
+
+        # Small tab-name marker in the bottom-right of the status area
+        self.tab_name_label = ctk.CTkLabel(
+            info_frame,
+            text="",
+            font=ctk.CTkFont(size=10),
+            text_color="gray",
+        )
+        self.tab_name_label.pack(side="right", padx=10)
+        self.refresh_tab_name_label()
 
         # BUTTONS (with log toggle at start)
         self.buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -242,3 +262,13 @@ class RepoTabUIMixin:
         """Enable tab. Thread-safe."""
         self.app.ui_call(lambda: self.btn_poll.configure(state="normal"))
         self.app.ui_call(lambda: self.btn_sync.configure(state="normal"))
+
+    def refresh_tab_name_label(self):
+        """Update the small tab-name marker in the status area to
+        match the current alias / folder name. Safe no-op when the
+        label has not been built yet (advanced mode shares the same
+        method)."""
+        if not hasattr(self, "tab_name_label"):
+            return
+        name = self.app.get_tab_display_name(str(self.repo_path))
+        self.tab_name_label.configure(text=name)

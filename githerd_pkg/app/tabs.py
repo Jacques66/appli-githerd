@@ -241,7 +241,24 @@ class AppTabsMixin:
         """Handle right-click on tab - show context menu."""
         import tkinter as tk
         tab = self.tabs.get(tab_name)
-        menu = tk.Menu(self, tearoff=0)
+        # Inherit the font/colors from the main menubar so this popup
+        # has the same readable size as the standard menus.
+        menu = tk.Menu(
+            self, tearoff=0,
+            font=getattr(self, "menu_font", None),
+            bg=self.menu_colors["bg"] if hasattr(self, "menu_colors") else None,
+            fg=self.menu_colors["fg"] if hasattr(self, "menu_colors") else None,
+            activebackground=(
+                self.menu_colors["active_bg"]
+                if hasattr(self, "menu_colors")
+                else None
+            ),
+            activeforeground=(
+                self.menu_colors["active_fg"]
+                if hasattr(self, "menu_colors")
+                else None
+            ),
+        )
         menu.add_command(
             label="Run",
             command=lambda: tab.manual_sync() if tab else None,
@@ -250,11 +267,6 @@ class AppTabsMixin:
         menu.add_command(
             label="Options...",
             command=lambda: tab.show_config_dialog() if tab else None
-        )
-        menu.add_separator()
-        menu.add_command(
-            label="Rename tab...",
-            command=lambda: self.show_rename_dialog(tab_name)
         )
         menu.add_separator()
         menu.add_command(
@@ -331,30 +343,6 @@ class AppTabsMixin:
         # Update menu
         self.update_repo_menu()
 
-    def show_rename_dialog(self, tab_name):
-        """Show dialog to rename tab."""
-        import tkinter as tk
-        from tkinter import simpledialog
-
-        repo_path = self.tab_paths.get(tab_name)
-        if not repo_path:
-            return
-
-        # Get current alias or repo name
-        aliases = self.global_settings.get("tab_aliases", {})
-        current = aliases.get(repo_path, Path(repo_path).name)
-
-        # Ask for new name
-        new_name = simpledialog.askstring(
-            "Rename Tab",
-            f"Enter new name for tab (leave empty to reset):",
-            initialvalue=current,
-            parent=self
-        )
-
-        if new_name is not None:  # User didn't cancel
-            self.set_tab_alias(tab_name, new_name.strip())
-
     def set_tab_alias(self, tab_name, alias):
         """Set or clear tab alias."""
         repo_path = self.tab_paths.get(tab_name)
@@ -378,6 +366,11 @@ class AppTabsMixin:
         if tab_name in self.tab_buttons:
             display_name = alias if alias else Path(repo_path).name
             self.tab_buttons[tab_name].configure(text=display_name)
+
+        # Update the in-tab name marker if the tab content has one.
+        tab = self.tabs.get(tab_name)
+        if tab and hasattr(tab, "refresh_tab_name_label"):
+            tab.refresh_tab_name_label()
 
     def get_tab_display_name(self, repo_path):
         """Get display name for a repo (alias or folder name)."""
@@ -461,6 +454,10 @@ class AppTabsMixin:
             self.tab_buttons[tab_name].configure(
                 text=self.get_tab_display_name(new_path)
             )
+
+        # Refresh the in-tab name marker
+        if hasattr(tab, "refresh_tab_name_label"):
+            tab.refresh_tab_name_label()
 
         self.save_current_repos()
         return True

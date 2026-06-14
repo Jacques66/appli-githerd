@@ -22,7 +22,7 @@ class RepoTabDialogsMixin:
         """Show repository configuration dialog."""
         dialog = ctk.CTkToplevel(self.app)
         dialog.title(f"Options — {self.repo_path.name}")
-        dialog.geometry("520x440")
+        dialog.geometry("520x480")
         dialog.transient(self.app)
         dialog.resizable(False, False)
         self.app.ensure_dialog_on_screen(dialog)
@@ -36,12 +36,23 @@ class RepoTabDialogsMixin:
                     font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(15, 10))
 
+        # Alias (display name of the tab; leave empty to use the folder name)
+        ctk.CTkLabel(main_frame, text="Alias:").grid(
+            row=1, column=0, sticky="w", padx=15, pady=8)
+        current_alias = self.app.global_settings.get("tab_aliases", {}).get(
+            str(self.repo_path), ""
+        )
+        alias_entry = ctk.CTkEntry(main_frame, width=250)
+        alias_entry.insert(0, current_alias)
+        alias_entry.grid(row=1, column=1, columnspan=2, sticky="ew",
+                         padx=(10, 15), pady=8)
+
         # Directory (re-point the tab to a different folder)
         ctk.CTkLabel(main_frame, text="Directory:").grid(
-            row=1, column=0, sticky="w", padx=15, pady=8)
+            row=2, column=0, sticky="w", padx=15, pady=8)
         dir_var = ctk.StringVar(value=str(self.repo_path))
         dir_entry = ctk.CTkEntry(main_frame, textvariable=dir_var, width=250)
-        dir_entry.grid(row=1, column=1, sticky="ew", padx=(10, 5), pady=8)
+        dir_entry.grid(row=2, column=1, sticky="ew", padx=(10, 5), pady=8)
 
         def browse_dir():
             path = filedialog.askdirectory(
@@ -54,35 +65,35 @@ class RepoTabDialogsMixin:
 
         ctk.CTkButton(main_frame, text="Browse…", width=80,
                       command=browse_dir).grid(
-            row=1, column=2, sticky="w", padx=(0, 15), pady=8)
+            row=2, column=2, sticky="w", padx=(0, 15), pady=8)
 
         # Remote
         ctk.CTkLabel(main_frame, text="Remote:").grid(
-            row=2, column=0, sticky="w", padx=15, pady=8)
+            row=3, column=0, sticky="w", padx=15, pady=8)
         remote_entry = ctk.CTkEntry(main_frame, width=250)
         remote_entry.insert(0, self.remote)
-        remote_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
+        remote_entry.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Main branch
         ctk.CTkLabel(main_frame, text="Main branch:").grid(
-            row=3, column=0, sticky="w", padx=15, pady=8)
+            row=4, column=0, sticky="w", padx=15, pady=8)
         main_entry = ctk.CTkEntry(main_frame, width=250)
         main_entry.insert(0, self.main)
-        main_entry.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
+        main_entry.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Branch prefix
         ctk.CTkLabel(main_frame, text="Branch prefix:").grid(
-            row=4, column=0, sticky="w", padx=15, pady=8)
+            row=5, column=0, sticky="w", padx=15, pady=8)
         prefix_entry = ctk.CTkEntry(main_frame, width=250)
         prefix_entry.insert(0, self.prefix)
-        prefix_entry.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
+        prefix_entry.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
         # Interval
         ctk.CTkLabel(main_frame, text="Interval (sec):").grid(
-            row=5, column=0, sticky="w", padx=15, pady=8)
+            row=6, column=0, sticky="w", padx=15, pady=8)
         interval_entry = ctk.CTkEntry(main_frame, width=100)
         interval_entry.insert(0, str(self.interval))
-        interval_entry.grid(row=5, column=1, sticky="w", padx=(10, 15), pady=8)
+        interval_entry.grid(row=6, column=1, sticky="w", padx=(10, 15), pady=8)
 
         main_frame.columnconfigure(1, weight=1)
 
@@ -97,6 +108,10 @@ class RepoTabDialogsMixin:
             if new_dir and str(Path(new_dir)) != str(self.repo_path):
                 if not self.app.change_repo_directory(self.tab_name, new_dir):
                     return  # validation error already surfaced
+
+            # Alias (display name); empty string clears the alias and
+            # falls back to the folder name on display.
+            self.app.set_tab_alias(self.tab_name, alias_entry.get().strip())
 
             self.remote = remote_entry.get().strip()
             self.main = main_entry.get().strip()
@@ -163,7 +178,16 @@ class RepoTabDialogsMixin:
     def _on_log_right_click(self, event):
         """Show context menu on log right-click."""
         import tkinter as tk
-        menu = tk.Menu(self.app, tearoff=0)
+        # Inherit the menubar font/colors for size+style consistency.
+        colors = getattr(self.app, "menu_colors", None)
+        menu = tk.Menu(
+            self.app, tearoff=0,
+            font=getattr(self.app, "menu_font", None),
+            bg=colors["bg"] if colors else None,
+            fg=colors["fg"] if colors else None,
+            activebackground=colors["active_bg"] if colors else None,
+            activeforeground=colors["active_fg"] if colors else None,
+        )
         menu.add_command(label="Copy", command=self.copy_log)
         menu.tk_popup(event.x_root, event.y_root)
 
