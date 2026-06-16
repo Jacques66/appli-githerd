@@ -141,23 +141,35 @@ class RepoTabPollingMixin:
         Uses stop_event for clean shutdown:
         - Thread waits for either timeout or stop signal
         - Current sync always completes before stopping
+
+        The try/finally guarantees that whatever exit path we take
+        (clean stop, exception, sync error calling stop_polling) the
+        polling flag and button color end up consistent — the link
+        between `self.polling` and the green/red button is permanent.
         """
-        while not self.stop_event.is_set():
-            self.sync()  # Blocking - completes before checking stop_event
+        try:
+            while not self.stop_event.is_set():
+                self.sync()  # Blocking - completes before checking stop_event
 
-            # Reload interval (may have changed)
-            try:
-                cfg = load_repo_config(self.repo_path)
-                interval = cfg.get("interval_seconds", self.interval)
-            except:
-                interval = self.interval
+                # Reload interval (may have changed)
+                try:
+                    cfg = load_repo_config(self.repo_path)
+                    interval = cfg.get("interval_seconds", self.interval)
+                except Exception:
+                    interval = self.interval
 
-            self.next_poll_time = time.time() + interval
+                self.next_poll_time = time.time() + interval
 
-            # Wait for interval OR stop signal
-            # wait() returns True if event is set, False on timeout
-            if self.stop_event.wait(timeout=interval):
-                break  # Stop signal received
+                # Wait for interval OR stop signal
+                # wait() returns True if event is set, False on timeout
+                if self.stop_event.wait(timeout=interval):
+                    break  # Stop signal received
+        finally:
+            # Defensive — guarantee the UI matches reality on ANY exit
+            self.polling = False
+            self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
+            self.app.ui_call(self.stop_countdown)
+            self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def toggle_polling(self):
         """Toggle polling on/off."""
@@ -189,8 +201,15 @@ class RepoTabPollingMixin:
 
     def stop_polling(self):
         """Stop polling. Thread-safe: callable from sync error paths
-        (worker thread) as well as menu callbacks (main thread)."""
+        (worker thread) as well as menu callbacks (main thread).
+
+        Sets the stop_event so the polling_loop actually exits — without
+        this, the loop would only see self.polling=False but keep
+        looping forever, producing the "gray button while still
+        polling" symptom.
+        """
         self.polling = False
+        self.stop_event.set()
         self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
         self.app.ui_call(self.stop_countdown)
         self.app.ui_call(lambda: self.app.update_tab_color(self))

@@ -84,6 +84,10 @@ class App(
         self.after(30, self._drain_ui_queue)
         _trace("ui drainer scheduled")
 
+        # Periodic safety net that keeps tab button colors in lockstep
+        # with the live polling/health state.
+        self.after(1500, self._reconcile_tab_colors)
+
         # Always on top
         self.after(500, self.set_always_on_top)
 

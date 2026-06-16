@@ -33,13 +33,30 @@ class AppTabsMixin:
         return "default"
 
     def update_tab_color(self, tab):
-        """Update tab button color."""
+        """Update tab button color from `tab.polling` / health / errors.
+
+        Short-circuits if the computed (bg_state, indicator) hasn't
+        changed since the last call — this makes it cheap enough to be
+        invoked by the periodic reconciler without causing flicker.
+        """
         tab_name = tab.tab_name
         if tab_name not in self.tab_buttons:
             return
 
         btn = self.tab_buttons[tab_name]
         bg_state = self.get_tab_bg_state(tab)
+        if tab.syncing:
+            indicator = "⭯"
+        elif tab.has_update:
+            indicator = "●"
+        else:
+            indicator = ""
+
+        cached = getattr(tab, "_last_color_state", None)
+        new_state = (bg_state, indicator)
+        if cached == new_state:
+            return
+        tab._last_color_state = new_state
 
         # Define colors
         if bg_state == "green":
@@ -52,18 +69,24 @@ class AppTabsMixin:
             fg_color = "#3d3d3d"
             hover_color = "#4a4a4a"
 
-        # Update button colors
         btn.configure(fg_color=fg_color, hover_color=hover_color)
-
-        # Update indicator
-        if tab.syncing:
-            btn.set_indicator("⭯")
-        elif tab.has_update:
-            btn.set_indicator("●")
-        else:
-            btn.set_indicator("")
-
+        btn.set_indicator(indicator)
         self.update_title()
+
+    def _reconcile_tab_colors(self):
+        """Periodic safety net: re-derive every tab button color from
+        the live polling/health/error state. Cheap thanks to the
+        update_tab_color short-circuit. The link between actual polling
+        state and the button color is the contract — this enforces it
+        even if some path forgot to call update_tab_color directly.
+        """
+        try:
+            for tab in self.tabs.values():
+                self.update_tab_color(tab)
+        except Exception:
+            pass
+        # 1.5 s strikes a balance between latency and CPU.
+        self.after(1500, self._reconcile_tab_colors)
 
     def mark_tab_updated(self, tab):
         """Mark tab as having an update."""
