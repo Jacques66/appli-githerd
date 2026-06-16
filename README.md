@@ -58,7 +58,7 @@ githerd
 
 ### Adding repositories
 
-1. **Menu Fichier > Ajouter un repo** (or `Ctrl+O`)
+1. **File → Add repository…** (or `Ctrl+O`)
 2. Select a Git repository folder
 3. Remote and main branch are **auto-detected**
 4. A `githerd.toml` config file is created with detected values
@@ -86,10 +86,12 @@ The tab alias is set from **Options… → Alias**:
 - Aliases appear in both the tab button, the in-tab status area (bottom-right), and the Inactive repos submenu
 
 **Tab indicators (background colors):**
-- Green background = Polling active
-- Gray background = Polling inactive
-- Red background = STOP (action required or error)
+- Green background = Polling active and healthy
+- Gray background = Polling inactive (idle)
+- Red background = Git unhealthy, sync error (pull/push refused, merge failed…), or STOP state requiring action
 - `● Name` = Update detected (click tab to clear)
+
+The link between `polling` state and the green/red colour is enforced both at every state transition AND by a 1.5 s periodic reconciler, so a mismatch between the actual polling activity and the tab colour cannot persist.
 
 ### Recent activity status bar
 
@@ -107,19 +109,26 @@ Events recorded: pull/push completed, branches synced, merges, STOP states, remo
 
 ### Per-tab countdown badge
 
-When polling is active on a tab, a tiny countdown (e.g. `42s`) appears in the bottom-right corner of the tab button, indicating the seconds remaining before the next sync. It clears as soon as polling is stopped.
+When polling is active on a tab, a tiny white number (e.g. `42`) appears in the bottom-right corner of the tab button — the seconds remaining before the next sync. It clears as soon as polling is stopped.
 
 ### Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+O` | Add a repository |
-| `Ctrl+S` | Stop all polling (the File menu also offers **Suspend all polling** — snapshots which repos were polling, stops them, and flips the entry to **Restore all polling** to relaunch the same set) |
+| `Ctrl+S` | Stop all polling |
 | `Ctrl+R` | Restart (if no action is active) |
 | `Ctrl+Q` | Quit |
-| `Ctrl+Tab` | Next tab |
-| `Ctrl+Shift+Tab` | Previous tab |
-| `Ctrl+M` | Toggle compact mode |
+
+### Menu File
+
+| Entry | Description |
+|-------|-------------|
+| Add repository… | Pick a Git folder and open a new tab (`Ctrl+O`) |
+| Stop all polling | Stops polling on every tab (`Ctrl+S`) |
+| Suspend all polling | Snapshots which repos were polling, stops them, and flips the entry to **Restore all polling** which restarts the same set |
+| Restart | Save state and re-launch GitHerd (`Ctrl+R`) |
+| Quit | Close GitHerd, saving the polling state for next start (`Ctrl+Q`) |
 
 ### Menu Repository
 
@@ -163,6 +172,8 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 | Desktop notifications | Enable system notifications (notify-send) |
 | Restore polling state on restart | Remember and restore polling state per repo |
 | Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
+| Recent activity entries kept | Number of entries shown in the bottom status bar / popup (3 / 5 / 10 / 20, default `5`) |
+| Default polling interval (sec) for new repos | Initial `interval_seconds` written into `githerd.toml` when a new repo is added (default `60`) |
 
 Stored in `~/.config/githerd/settings.json`
 
@@ -179,13 +190,14 @@ When enabled, the UI is simplified:
 
 | Setting | Description |
 |---------|-------------|
-| Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings |
-| Remote | Git remote name (auto-detected) |
-| Main branch | Main branch name (auto-detected) |
-| Branch prefix | Prefix of branches to track (default: `claude/`) |
+| Alias | Display name shown on the tab button, in the bottom-right of the status area, and in the Inactive repos submenu. Leave empty to fall back to the folder name. Stored in `settings.json → tab_aliases`. |
+| Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings. |
+| Remote | Git remote name (auto-detected). |
+| Main branch | Main branch name (auto-detected). |
+| Branch prefix | Prefix of branches to track (default: `claude/`). |
 | Interval | Polling interval in seconds. The default for new repos is set in **Global Settings → Default polling interval (sec) for new repos** (default: `60`). Existing repos keep their own per-repo value. |
 
-All settings except Directory are stored in `<repo>/githerd.toml`. Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
+Remote / Main branch / Branch prefix / Interval are stored in `<repo>/githerd.toml`. Alias and Directory affect global state (`settings.json`). Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
 
 ### Config file format
 
@@ -212,6 +224,10 @@ The `settings.json` file includes:
 - `branch_update_enabled`: per-repo, per-branch sync enabled state
 - `hidden_repos`: list of inactive repo paths
 - `tab_aliases`: custom tab names (`{repo_path: "alias"}`)
+- `recent_sync_limit`: status-bar entry count
+- `default_interval_seconds`: default polling interval for newly added repos
+- `window_width`, `window_x`, `window_y`: window geometry restored at next start
+- `start_collapsed`, `last_active_tab`: UI state restored at next start
 
 ## Requirements
 
@@ -245,10 +261,12 @@ sudo apt install wmctrl pulseaudio-utils libnotify-bin
 
 If Git is not functional in a repository (wrong remote, network error, etc.):
 
-- The tab shows 🔴 **ERREUR — Git non fonctionnel**
+- The tab shows 🔴 **ERROR — Git not working** (plus the diagnostic context — failing command, remote URL, repo path — in the log)
 - Polling and Sync buttons are **disabled**
-- You can still access **Configuration** to fix settings
+- You can still access **Options…** to fix settings
 - After saving new settings, Git health is re-checked
+
+For mid-sync errors (pull refused, merge aborted, push rejected…), the tab turns red until the next successful sync clears the error.
 
 ## Why GitHerd?
 
