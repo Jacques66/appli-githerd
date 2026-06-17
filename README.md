@@ -279,6 +279,22 @@ GitHerd watches your branches and:
 
 Catch divergences early (a few commits) instead of late (dozens of conflicts).
 
+## Disclaimer
+
+GitHerd is provided **“AS IS”** and **“AS AVAILABLE”**, without warranties of any kind, whether express or implied.
+
+To the fullest extent permitted by applicable law, the author and contributors shall not be held liable for any direct, indirect, incidental, special, consequential, or other damages, losses, failures, data loss, repository corruption, merge conflicts, service interruptions, or other consequences arising from or related to:
+
+* the installation, execution, configuration, or use of GitHerd;
+* any intended, unintended, improper, or unauthorized use of GitHerd;
+* any action performed automatically or manually through GitHerd;
+* any incompatibility, malfunction, error, omission, or unexpected behavior;
+* any modification, redistribution, integration, or third-party use of GitHerd.
+
+You are solely responsible for reviewing GitHerd’s behavior, maintaining appropriate backups, verifying Git operations, and determining whether the software is suitable for your environment and intended use.
+
+By installing, copying, modifying, or using GitHerd, you acknowledge and accept that you do so entirely at your own risk.
+
 ## License
 
 MIT — Copyright (c) 2025 InZeMobile
