@@ -103,9 +103,9 @@ The newest entry is on the **right**, in white. Older entries are on the left, i
 
 Events recorded: pull/push completed, branches synced, merges, STOP states, remote initialization. Each successful sync produces a single entry. Idle "nothing to do" syncs and errors are skipped.
 
-- **Click the bar** to open a popup listing the same entries one per line.
-- The number of entries kept is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20).
-- Entries are in memory only and reset on restart.
+- **Click the bar** to open a popup listing **every recorded event since startup** (one per line, scrollable). The title shows the total count.
+- The number of entries that fit on the bar itself is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20). The popup is always uncapped.
+- Entries are in memory only and reset on restart (up to a hard cap of 500 events per session).
 
 ### Per-tab countdown badge
 

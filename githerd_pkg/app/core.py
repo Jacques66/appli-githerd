@@ -33,7 +33,10 @@ class AppCoreMixin:
         # Global rolling list of meaningful sync events across all repos.
         # Each entry: (datetime, repo_alias, message). Newest first.
         self._recent_events_limit = max(1, int(self.global_settings.get("recent_sync_limit", 5)))
-        self.recent_events = deque(maxlen=self._recent_events_limit)
+        # `recent_sync_limit` governs only the in-bar display; the
+        # underlying history is kept much larger so the click-to-open
+        # popup can show every sync recorded this session.
+        self.recent_events = deque(maxlen=500)
         # Names of tabs that were polling when "Suspend all polling"
         # was invoked. Empty when no suspend is pending.
         self._suspended_polling = []
@@ -70,7 +73,9 @@ class AppCoreMixin:
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):
-        """Render the bar as N entries: oldest left, newest right (white)."""
+        """Render the bar as the most recent `_recent_events_limit`
+        entries: oldest left, newest right (white). The popup keeps
+        the full history; only the bar is capped."""
         inner = getattr(self, "status_bar_inner", None)
         if inner is None:
             return
@@ -78,7 +83,9 @@ class AppCoreMixin:
             child.destroy()
         if not self.recent_events:
             return
-        entries = list(reversed(self.recent_events))  # oldest first, newest last
+        # Only the N newest entries make it into the bar.
+        recent = list(self.recent_events)[:self._recent_events_limit]
+        entries = list(reversed(recent))  # oldest left, newest right
         last_idx = len(entries) - 1
         for i, entry in enumerate(entries):
             ts, tab_name, commit_hash = entry[0], entry[1], entry[2]
@@ -127,8 +134,8 @@ class AppCoreMixin:
         if not self.recent_events:
             return
         popup = ctk.CTkToplevel(self)
-        popup.title("Recent sync activity")
-        popup.geometry("600x260")
+        popup.title(f"Recent sync activity ({len(self.recent_events)})")
+        popup.geometry("640x480")
         popup.transient(self)
         popup.bind("<Escape>", lambda e: popup.destroy())
         popup.focus_set()
@@ -156,12 +163,13 @@ class AppCoreMixin:
         ctk.CTkButton(popup, text="Close", command=popup.destroy, width=80).pack(pady=(0, 10))
 
     def _resize_recent_events(self, new_limit):
-        """Rebuild the deque preserving content when the limit changes."""
+        """Adjust how many entries the bar shows. The underlying
+        history (used by the popup) is untouched — it always carries
+        the full session log up to its hard cap."""
         new_limit = max(1, int(new_limit))
         if new_limit == self._recent_events_limit:
             return
         self._recent_events_limit = new_limit
-        self.recent_events = deque(list(self.recent_events)[:new_limit], maxlen=new_limit)
         self._refresh_status_bar()
 
     def _init_window(self):
