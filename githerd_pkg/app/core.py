@@ -69,8 +69,14 @@ class AppCoreMixin:
 
         Thread-safe: the deque append is atomic in CPython, and the
         widget refresh is marshalled to the main thread via ui_call.
+        Also stamps the originating tab's activity time so the
+        inactivity auto-disable clock resets on real work.
         """
         self.recent_events.appendleft((datetime.now(), repo_alias, commit_hash, branch))
+        tab = self.tabs.get(repo_alias)
+        if tab is not None:
+            import time
+            tab.last_activity_time = time.time()
         self.ui_call(self._refresh_status_bar)
 
     def _refresh_status_bar(self):

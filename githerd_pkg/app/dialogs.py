@@ -221,6 +221,24 @@ class AppDialogsMixin:
         auto_retry_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
         row += 1
 
+        # Watch idle repos → auto-start polling on change (0 = off)
+        ctk.CTkLabel(main_frame, text="Watch idle repos, start on change (sec, 0=off):").grid(
+            row=row, column=0, sticky="w", pady=6)
+        watch_idle_entry = ctk.CTkEntry(main_frame, width=80)
+        watch_idle_entry.insert(0, str(self.global_settings.get("watch_idle_interval_seconds", 0)))
+        watch_idle_entry.grid(row=row, column=1, sticky="w", pady=6)
+        row += 1
+
+        # Auto-disable polling after inactivity — in HOURS, shown red to
+        # make the different time unit obvious.
+        ctk.CTkLabel(main_frame, text="Disable polling after inactivity (hours, 0=off):",
+                     text_color="#e05555").grid(
+            row=row, column=0, sticky="w", pady=6)
+        inactivity_entry = ctk.CTkEntry(main_frame, width=80)
+        inactivity_entry.insert(0, str(self.global_settings.get("inactivity_disable_hours", 24)))
+        inactivity_entry.grid(row=row, column=1, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -256,6 +274,16 @@ class AppDialogsMixin:
             except (ValueError, AttributeError):
                 new_retry_interval = 60
             self.global_settings["auto_retry_interval_seconds"] = new_retry_interval
+            try:
+                new_watch_idle = max(0, int(watch_idle_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_watch_idle = 0
+            self.global_settings["watch_idle_interval_seconds"] = new_watch_idle
+            try:
+                new_inactivity = max(0, float(inactivity_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_inactivity = 24
+            self.global_settings["inactivity_disable_hours"] = new_inactivity
 
             try:
                 save_global_settings(self.global_settings)

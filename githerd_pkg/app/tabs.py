@@ -110,6 +110,55 @@ class AppTabsMixin:
         interval = max(5, int(settings.get("auto_retry_interval_seconds", 60)))
         self.after(interval * 1000, self._retry_errored_repos)
 
+    def _watch_idle_repos(self):
+        """Periodic idle-watch loop. When enabled (interval > 0),
+        spawns a worker per idle healthy repo to detect pending work
+        and auto-start polling. Reschedules itself so setting changes
+        take effect on the next tick; when off, re-checks the setting
+        every 5 s."""
+        settings = self.global_settings
+        try:
+            interval = int(settings.get("watch_idle_interval_seconds", 0) or 0)
+        except (TypeError, ValueError):
+            interval = 0
+        if interval > 0:
+            for tab in self.tabs.values():
+                if (tab.git_healthy and not tab.polling
+                        and not getattr(tab, "sync_error", False)
+                        and not tab.lock.locked()):
+                    threading.Thread(target=tab.watch_for_changes, daemon=True).start()
+            delay = max(5, interval) * 1000
+        else:
+            delay = 5000  # keep polling the setting so it can be turned on live
+        self.after(delay, self._watch_idle_repos)
+
+    def _disable_inactive_repos(self):
+        """Stop polling on repos that have seen no meaningful sync
+        activity for `inactivity_disable_hours` hours (0 = off). This
+        is a clean stop (clears the auto-retry resume intent); the
+        idle-watch loop can bring them back if a change appears later.
+        Checked once a minute — hour granularity doesn't need finer."""
+        import time
+        settings = self.global_settings
+        try:
+            hours = float(settings.get("inactivity_disable_hours", 24) or 0)
+        except (TypeError, ValueError):
+            hours = 0
+        if hours > 0:
+            cutoff = hours * 3600
+            now = time.time()
+            for tab in self.tabs.values():
+                if tab.polling and (now - getattr(tab, "last_activity_time", now)) >= cutoff:
+                    tab.log_msg(f"Inactive for ≥{hours:g}h → stopping polling")
+                    tab.polling = False
+                    tab.polling_interrupted = False
+                    tab.stop_event.set()
+                    tab.btn_poll.configure(text="▶ Start polling")
+                    tab.stop_countdown()
+                    self.update_tab_color(tab)
+            self.update_title()
+        self.after(60000, self._disable_inactive_repos)
+
     def mark_tab_updated(self, tab):
         """Mark tab as having an update."""
         if not tab.has_update:

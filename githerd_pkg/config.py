@@ -44,7 +44,9 @@ DEFAULT_GLOBAL_SETTINGS = {
     "recent_sync_limit": 5,  # Number of recent meaningful syncs kept in the status bar
     "default_interval_seconds": 60,  # Default polling interval (seconds) for newly added repos
     "auto_retry_errored": False,  # Periodically try to recover repos that are in an error state
-    "auto_retry_interval_seconds": 60  # How often (seconds) to attempt recovery of errored repos
+    "auto_retry_interval_seconds": 60,  # How often (seconds) to attempt recovery of errored repos
+    "watch_idle_interval_seconds": 0,  # Watch non-polling repos and auto-start polling on change (0 = off)
+    "inactivity_disable_hours": 24  # Auto-disable polling after this many hours without activity (0 = off)
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]

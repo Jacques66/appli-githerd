@@ -8,7 +8,7 @@ Handles polling loop, countdown, and initial scan.
 import time
 import threading
 
-from ..config import load_repo_config
+from ..config import load_repo_config, load_global_settings
 from ..git_utils import (
     run_git, get_tracked_branches, commits_ahead, commits_behind,
     local_main_ahead, are_files_disjoint, check_git_health, get_short_head,
@@ -188,6 +188,7 @@ class RepoTabPollingMixin:
             # Start polling
             self.polling = True
             self.polling_interrupted = False
+            self.last_activity_time = time.time()  # fresh grace period
             self.stop_event.clear()  # Reset event
             self.btn_poll.configure(text="⏸ Stop polling")
             self.next_poll_time = time.time() + self.interval
@@ -253,6 +254,67 @@ class RepoTabPollingMixin:
     def _resume_polling_after_recovery(self):
         """Restart polling on the main thread after a successful
         recovery of a repo whose polling had been interrupted."""
+        if not self.polling and self.git_healthy:
+            self.toggle_polling()
+
+    def watch_for_changes(self):
+        """Watch an idle (non-polling) repo for pending work and start
+        polling if anything needs syncing.
+
+        Runs in a worker thread (spawned by the App's idle-watch loop).
+        Guarded by the sync lock so it never overlaps an in-flight sync.
+        Does a read-only fetch + comparison; it never pushes/pulls —
+        the actual sync happens once polling is (re)started.
+        """
+        if self.polling or not self.git_healthy:
+            return
+        if not self.lock.acquire(blocking=False):
+            return
+        try:
+            if self._detect_pending_work():
+                self.log_msg("Watch: change detected → starting polling")
+                self.app.ui_call(self._start_polling_if_idle)
+        finally:
+            self.lock.release()
+
+    def _detect_pending_work(self):
+        """Return True if, after a fetch, the repo is non-idle: local
+        main ahead / remote main missing, or any enabled tracked branch
+        ahead of or behind main. Read-only; swallows git errors."""
+        try:
+            code, _, _ = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
+            if code != 0:
+                return False
+
+            local_ahead = local_main_ahead(self.remote, self.main,
+                                           cwd=self.repo_path, git=self.git)
+            if local_ahead != 0:  # >0 ahead, or -1 bootstrap needed
+                return True
+
+            branches = get_tracked_branches(self.remote, self.prefix,
+                                            cwd=self.repo_path, git=self.git)
+            settings = load_global_settings()
+            branch_states = settings.get("branch_update_enabled", {}).get(
+                str(self.repo_path), {}
+            )
+            default_enabled = settings.get("sync_new_branches_by_default", False)
+            base = f"{self.remote}/{self.main}"
+            for b in branches:
+                short = b.replace(f"{self.remote}/", "")
+                if not branch_states.get(short, default_enabled):
+                    continue
+                if commits_ahead(base, b, cwd=self.repo_path, git=self.git) > 0:
+                    return True
+                if commits_behind(base, b, cwd=self.repo_path, git=self.git) > 0:
+                    return True
+        except Exception:
+            return False
+        return False
+
+    def _start_polling_if_idle(self):
+        """Start polling on the main thread if the repo is still idle
+        and healthy (guards against a race where the user started it
+        manually between detection and this callback)."""
         if not self.polling and self.git_healthy:
             self.toggle_polling()
 

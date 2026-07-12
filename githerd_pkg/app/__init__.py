@@ -91,6 +91,12 @@ class App(
         # Periodic auto-retry of repos stuck in an error state (opt-in).
         self.after(5000, self._retry_errored_repos)
 
+        # Watch idle repos and auto-start polling on change (opt-in).
+        self.after(6000, self._watch_idle_repos)
+
+        # Auto-disable polling on repos inactive for N hours (opt-in).
+        self.after(60000, self._disable_inactive_repos)
+
         # Always on top
         self.after(500, self.set_always_on_top)
 

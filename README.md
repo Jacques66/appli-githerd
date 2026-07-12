@@ -176,6 +176,8 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 | Default polling interval (sec) for new repos | Initial `interval_seconds` written into `githerd.toml` when a new repo is added (default `60`) |
 | Auto-retry repos in error (reconnect) | When on, repos stuck in an error state (git unhealthy or a mid-sync failure) are periodically re-checked; a repo that recovers has its error cleared and, if the error had interrupted polling, polling resumes automatically. STOP-merge states (human decision) are not retried. Default **off**. |
 | Auto-retry interval (sec) | How often errored repos are retried when the option above is on (default `60`, minimum `5`) |
+| Watch idle repos, start on change | Every N seconds, non-polling healthy repos are checked (read-only fetch); if a repo has pending work (local main ahead, or a tracked branch ahead of / behind main), polling is started automatically on it. `0` disables. Default `0`. |
+| Disable polling after inactivity (hours) | Shown in **red** because the unit is hours, not seconds. A repo that has polled without any meaningful sync activity for this many hours has its polling stopped automatically (clean stop; the idle-watch above can restart it later if a change appears). `0` disables. Default `24`. |
 
 Stored in `~/.config/githerd/settings.json`
 
