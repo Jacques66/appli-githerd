@@ -44,6 +44,24 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 git clone https://github.com/Jacques66/GitHerd.git
 ```
 
+### Windows executable (build from WSL)
+
+`build_windows.sh` produces a standalone `dist/GitHerd.exe`. PyInstaller
+cannot cross-compile, so the script drives the **Windows** Python
+interpreter from WSL (not the Linux one). Requires Python installed on
+the Windows side (python.org — includes tkinter).
+
+```bash
+./build_windows.sh
+# or with an explicit interpreter:
+PYWIN='/mnt/c/Users/you/AppData/Local/Programs/Python/Python312/python.exe' ./build_windows.sh
+```
+
+Note: this first version keeps it simple. On Windows, desktop
+notifications (`notify-send`), folder-open (`xdg-open`) and the OGA
+sounds are Linux-only and degrade to no-ops / a plain `\a` beep;
+always-on-top still works via Tk.
+
 ## Usage
 
 Simply run GitHerd from anywhere:
