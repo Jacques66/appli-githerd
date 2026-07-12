@@ -208,6 +208,19 @@ class AppDialogsMixin:
         default_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
         row += 1
 
+        # Auto-retry repos that are in an error state
+        auto_retry_var = ctk.BooleanVar(value=self.global_settings.get("auto_retry_errored", False))
+        ctk.CTkCheckBox(main_frame, text="Auto-retry repos in error (reconnect)",
+                       variable=auto_retry_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
+        row += 1
+
+        ctk.CTkLabel(main_frame, text="Auto-retry interval (sec):").grid(
+            row=row, column=0, sticky="w", pady=6)
+        auto_retry_interval_entry = ctk.CTkEntry(main_frame, width=80)
+        auto_retry_interval_entry.insert(0, str(self.global_settings.get("auto_retry_interval_seconds", 60)))
+        auto_retry_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
+        row += 1
+
         main_frame.columnconfigure(1, weight=1)
 
         # Buttons
@@ -237,6 +250,12 @@ class AppDialogsMixin:
             except (ValueError, AttributeError):
                 new_default_interval = 60
             self.global_settings["default_interval_seconds"] = new_default_interval
+            self.global_settings["auto_retry_errored"] = auto_retry_var.get()
+            try:
+                new_retry_interval = max(5, int(auto_retry_interval_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_retry_interval = 60
+            self.global_settings["auto_retry_interval_seconds"] = new_retry_interval
 
             try:
                 save_global_settings(self.global_settings)

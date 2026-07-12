@@ -177,14 +177,17 @@ class RepoTabPollingMixin:
             return
 
         if self.polling:
-            # Stop polling
+            # Stop polling (explicit user action — cancel any pending
+            # auto-retry resume intent)
             self.polling = False
+            self.polling_interrupted = False
             self.stop_event.set()  # Signal thread to stop
             self.btn_poll.configure(text="▶ Start polling")
             self.stop_countdown()
         else:
             # Start polling
             self.polling = True
+            self.polling_interrupted = False
             self.stop_event.clear()  # Reset event
             self.btn_poll.configure(text="⏸ Stop polling")
             self.next_poll_time = time.time() + self.interval
@@ -207,12 +210,51 @@ class RepoTabPollingMixin:
         this, the loop would only see self.polling=False but keep
         looping forever, producing the "gray button while still
         polling" symptom.
+
+        stop_polling is only reached from error paths (sync/merge
+        failures); the normal user stop goes through toggle_polling /
+        stop_all_polling. So if polling was active here, it was an
+        error that interrupted it — remember that so auto-retry can
+        resume polling once the repo recovers.
         """
+        if self.polling:
+            self.polling_interrupted = True
         self.polling = False
         self.stop_event.set()
         self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
         self.app.ui_call(self.stop_countdown)
         self.app.ui_call(lambda: self.app.update_tab_color(self))
+
+    def retry_recovery(self):
+        """Attempt to recover a repo that is in an error state.
+
+        Runs in a worker thread (spawned by the App's auto-retry loop).
+        Re-checks git health; if the repo is healthy again, runs one
+        sync to clear any mid-sync error. If an error had interrupted
+        polling, polling is resumed once the repo is healthy and clean.
+        Guarded by the sync lock so it never overlaps an in-flight sync.
+        """
+        if not self.lock.acquire(blocking=False):
+            return
+        try:
+            self.log_msg("Auto-retry: re-checking repository…")
+            if not self.check_and_update_health():
+                return  # still unhealthy — next tick will try again
+            # Healthy again: a fresh sync clears sync_error on success
+            # (and re-sets it if the underlying problem persists).
+            self._do_sync()
+        finally:
+            self.lock.release()
+
+        if self.polling_interrupted and self.git_healthy and not self.sync_error:
+            self.polling_interrupted = False
+            self.app.ui_call(self._resume_polling_after_recovery)
+
+    def _resume_polling_after_recovery(self):
+        """Restart polling on the main thread after a successful
+        recovery of a repo whose polling had been interrupted."""
+        if not self.polling and self.git_healthy:
+            self.toggle_polling()
 
     def wait_for_polling_thread(self, timeout=None):
         """Wait for polling thread to finish.

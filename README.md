@@ -172,8 +172,10 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 | Desktop notifications | Enable system notifications (notify-send) |
 | Restore polling state on restart | Remember and restore polling state per repo |
 | Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
-| Recent activity entries kept | Number of entries shown in the bottom status bar / popup (3 / 5 / 10 / 20, default `5`) |
+| Recent activity entries kept | Number of entries shown in the bottom status bar (3 / 5 / 10 / 20, default `5`; the click popup is uncapped) |
 | Default polling interval (sec) for new repos | Initial `interval_seconds` written into `githerd.toml` when a new repo is added (default `60`) |
+| Auto-retry repos in error (reconnect) | When on, repos stuck in an error state (git unhealthy or a mid-sync failure) are periodically re-checked; a repo that recovers has its error cleared and, if the error had interrupted polling, polling resumes automatically. STOP-merge states (human decision) are not retried. Default **off**. |
+| Auto-retry interval (sec) | How often errored repos are retried when the option above is on (default `60`, minimum `5`) |
 
 Stored in `~/.config/githerd/settings.json`
 

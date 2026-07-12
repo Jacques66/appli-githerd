@@ -88,6 +88,9 @@ class App(
         # with the live polling/health state.
         self.after(1500, self._reconcile_tab_colors)
 
+        # Periodic auto-retry of repos stuck in an error state (opt-in).
+        self.after(5000, self._retry_errored_repos)
+
         # Always on top
         self.after(500, self.set_always_on_top)
 

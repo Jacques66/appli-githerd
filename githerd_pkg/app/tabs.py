@@ -5,6 +5,7 @@ GitHerd — App tabs mixin.
 Handles tab management, switching, and colors.
 """
 
+import threading
 from pathlib import Path
 import customtkinter as ctk
 
@@ -87,6 +88,27 @@ class AppTabsMixin:
             pass
         # 1.5 s strikes a balance between latency and CPU.
         self.after(1500, self._reconcile_tab_colors)
+
+    def _tab_in_error(self, tab):
+        """True if the tab is in a recoverable error state — git
+        unhealthy (connection/remote problem) or a mid-sync failure.
+        The STOP-merge state (pending_branches) is deliberately
+        excluded: it needs a human decision, not a reconnect."""
+        return (not tab.git_healthy) or getattr(tab, "sync_error", False)
+
+    def _retry_errored_repos(self):
+        """Periodic recovery loop. When enabled, spawns a worker per
+        errored repo to re-check health and re-sync. Reschedules itself
+        using the current interval so setting changes take effect on
+        the next tick."""
+        settings = self.global_settings
+        if settings.get("auto_retry_errored", False):
+            for tab in self.tabs.values():
+                # Skip repos that already have a sync/retry in flight.
+                if self._tab_in_error(tab) and not tab.lock.locked():
+                    threading.Thread(target=tab.retry_recovery, daemon=True).start()
+        interval = max(5, int(settings.get("auto_retry_interval_seconds", 60)))
+        self.after(interval * 1000, self._retry_errored_repos)
 
     def mark_tab_updated(self, tab):
         """Mark tab as having an update."""

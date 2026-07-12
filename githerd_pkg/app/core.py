@@ -7,6 +7,7 @@ Handles initialization, lifecycle, and basic window management.
 
 import queue
 import subprocess
+import threading
 from collections import deque
 from datetime import datetime
 import customtkinter as ctk
@@ -261,6 +262,8 @@ class AppCoreMixin:
         """Stop polling for all tabs."""
         stopped = 0
         for tab in self.tabs.values():
+            # Explicit stop cancels any pending auto-retry resume intent.
+            tab.polling_interrupted = False
             if tab.polling:
                 tab.polling = False
                 tab.stop_event.set()
@@ -295,6 +298,7 @@ class AppCoreMixin:
                 if tab.polling:
                     self._suspended_polling.append(tab_name)
                     tab.polling = False
+                    tab.polling_interrupted = False
                     tab.stop_event.set()
                     tab.stop_countdown()
                     tab.btn_poll.configure(text="▶ Start polling")
