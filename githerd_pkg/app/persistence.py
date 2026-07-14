@@ -25,16 +25,40 @@ class AppPersistenceMixin:
     """Mixin for persistence and UI rebuild."""
 
     def load_saved_repos(self):
-        """Load saved repositories and restore state."""
+        """Load saved repositories and restore state.
+
+        Resilient: a single repo that fails to open (bad githerd.toml,
+        a widget error, a transient git problem) must NOT abort the
+        whole loop and make every following repo disappear. Any repo
+        listed in repos.json that we could not open here is remembered
+        in self._unloaded_repos so save_current_repos does not silently
+        drop it from persistence.
+        """
         repos = load_repos_from_file()
         git = self.global_settings.get("git_binary", "git")
         hidden_repos = self.global_settings.get("hidden_repos", [])
+        # Repos present in repos.json but not turned into a live tab this
+        # session (missing folder, not a git repo, or an open error).
+        # Preserved so a later save keeps them in the file.
+        self._unloaded_repos = []
         for repo_path in repos:
-            # Skip hidden (inactive) repos
+            # Skip hidden (inactive) repos — they stay in persistence via
+            # the hidden_repos list, not via _unloaded_repos.
             if repo_path in hidden_repos:
                 continue
-            if Path(repo_path).exists() and is_git_repo(repo_path, git):
-                self.add_repo(repo_path, switch_to=False)
+            try:
+                if Path(repo_path).exists() and is_git_repo(repo_path, git):
+                    self.add_repo(repo_path, switch_to=False)
+                else:
+                    # Folder gone / not a git repo right now: keep the
+                    # entry rather than erasing it (the drive might be
+                    # unmounted, WSL path temporarily absent, etc.).
+                    self._unloaded_repos.append(repo_path)
+            except Exception as e:
+                import sys
+                print(f"[GitHerd] Failed to open repo {repo_path!r}: {e!r}",
+                      file=sys.stderr, flush=True)
+                self._unloaded_repos.append(repo_path)
 
         def restore_tab():
             last_tab = self.global_settings.get("last_active_tab", "")
@@ -59,13 +83,23 @@ class AppPersistenceMixin:
         self.after(200, restore_polling)
 
     def save_current_repos(self):
-        """Save list of currently open repositories (including hidden ones)."""
-        # Include both active and hidden repos
+        """Save list of repositories to repos.json.
+
+        Includes: currently open tabs + hidden repos + any repo that
+        was in repos.json but could not be opened this session
+        (_unloaded_repos). The last part is critical — without it, a
+        repo that failed to load once would be permanently erased from
+        the file the next time this runs, which is exactly how the
+        "far fewer repos than before" data loss happened.
+        """
         repos = list(self.tab_paths.values())
         hidden_repos = self.global_settings.get("hidden_repos", [])
         for hidden in hidden_repos:
             if hidden not in repos:
                 repos.append(hidden)
+        for unloaded in getattr(self, "_unloaded_repos", []):
+            if unloaded not in repos:
+                repos.append(unloaded)
         save_repos(repos)
 
     def save_window_state(self):
