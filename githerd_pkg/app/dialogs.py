@@ -299,8 +299,10 @@ class AppDialogsMixin:
             if old_advanced != new_advanced:
                 self.rebuild_ui()
 
-        ctk.CTkButton(btn_frame, text="Save", command=save_settings).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(side="left", padx=5)
+        # Right-aligned, order Cancel then Save. Pack Save first at the
+        # right edge, then Cancel to its left → visual: [Cancel][Save].
+        ctk.CTkButton(btn_frame, text="Save", command=save_settings).pack(side="right", padx=5)
+        ctk.CTkButton(btn_frame, text="Cancel", command=dialog.destroy).pack(side="right", padx=5)
 
     def show_about(self):
         """Show about dialog."""
