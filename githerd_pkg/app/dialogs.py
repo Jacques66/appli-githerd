@@ -19,29 +19,68 @@ from ..resources import HELP_TEXT
 class AppDialogsMixin:
     """Mixin for global dialogs."""
 
-    def show_global_settings(self):
-        """Show global settings dialog."""
+    def show_global_settings(self, active_section=None):
+        """Show global settings dialog.
+
+        Two-pane layout: a section list on the left, the selected
+        section's content on the right. `active_section` lets callers
+        reopen on the same section after a theme/zoom rebuild.
+        """
         dialog = ctk.CTkToplevel(self)
         dialog.title("Settings")
-        dialog.geometry("500x665")
+        dialog.geometry("680x520")
         dialog.transient(self)
         dialog.wait_visibility()
         dialog.grab_set()
         dialog.resizable(False, False)
         self.ensure_dialog_on_screen(dialog)
 
-        main_frame = ctk.CTkFrame(dialog)
-        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        # --- overall structure: [nav | content] on top, buttons below --
+        body = ctk.CTkFrame(dialog, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=15, pady=(15, 0))
 
-        row = 0
+        nav = ctk.CTkFrame(body, width=150)
+        nav.pack(side="left", fill="y", padx=(0, 12))
+        nav.pack_propagate(False)
 
-        # === APPEARANCE SECTION ===
-        ctk.CTkLabel(main_frame, text="Appearance", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        row += 1
+        content = ctk.CTkFrame(body)
+        content.pack(side="left", fill="both", expand=True)
 
-        # Appearance mode
-        ctk.CTkLabel(main_frame, text="Mode:").grid(row=row, column=0, sticky="w", pady=8)
+        # One frame per section; only the active one is packed.
+        section_order = ["Appearance", "Git", "General", "Sync", "Automation"]
+        sections = {name: ctk.CTkFrame(content, fg_color="transparent")
+                    for name in section_order}
+
+        nav_buttons = {}
+
+        def show_section(name):
+            for other in sections.values():
+                other.pack_forget()
+            sections[name].pack(fill="both", expand=True, padx=12, pady=12)
+            for bn, btn in nav_buttons.items():
+                if bn == name:
+                    btn.configure(fg_color=("#3a7ebf", "#1f6aa5"))
+                else:
+                    btn.configure(fg_color="transparent")
+
+        for name in section_order:
+            b = ctk.CTkButton(
+                nav, text=name, anchor="w", fg_color="transparent",
+                command=lambda n=name: show_section(n),
+            )
+            b.pack(fill="x", pady=2)
+            nav_buttons[name] = b
+
+        def section_title(parent, text):
+            ctk.CTkLabel(parent, text=text,
+                         font=ctk.CTkFont(size=15, weight="bold")).grid(
+                row=0, column=0, columnspan=3, sticky="w", pady=(0, 12))
+
+        # ============================ APPEARANCE ============================
+        appf = sections["Appearance"]
+        section_title(appf, "Appearance")
+
+        ctk.CTkLabel(appf, text="Mode:").grid(row=1, column=0, sticky="w", pady=8)
         appearance_var = ctk.StringVar(value=self.global_settings.get("appearance_mode", "dark"))
 
         def on_appearance_change(mode):
@@ -49,17 +88,11 @@ class AppDialogsMixin:
             self.update_menu_colors(mode)
 
         appearance_menu = ctk.CTkOptionMenu(
-            main_frame,
-            variable=appearance_var,
-            values=APPEARANCE_MODES,
-            width=150,
-            command=on_appearance_change
-        )
-        appearance_menu.grid(row=row, column=1, sticky="w", pady=8, padx=(10, 0))
-        row += 1
+            appf, variable=appearance_var, values=APPEARANCE_MODES,
+            width=150, command=on_appearance_change)
+        appearance_menu.grid(row=1, column=1, sticky="w", pady=8, padx=(10, 0))
 
-        # Color theme
-        ctk.CTkLabel(main_frame, text="Color:").grid(row=row, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(appf, text="Color:").grid(row=2, column=0, sticky="w", pady=8)
         theme_var = ctk.StringVar(value=self.global_settings.get("color_theme", "blue"))
 
         def on_theme_change(new_theme):
@@ -68,39 +101,22 @@ class AppDialogsMixin:
                 save_global_settings(self.global_settings)
                 dialog.destroy()
                 self.rebuild_ui()
-                self.after(150, self.show_global_settings)
+                self.after(150, lambda: self.show_global_settings("Appearance"))
 
         theme_menu = ctk.CTkOptionMenu(
-            main_frame,
-            variable=theme_var,
-            values=COLOR_THEMES,
-            width=150,
-            command=on_theme_change
-        )
-        theme_menu.grid(row=row, column=1, sticky="w", pady=8, padx=(10, 0))
-        row += 1
+            appf, variable=theme_var, values=COLOR_THEMES,
+            width=150, command=on_theme_change)
+        theme_menu.grid(row=2, column=1, sticky="w", pady=8, padx=(10, 0))
 
-        # Font zoom
-        ctk.CTkLabel(main_frame, text="Font zoom:").grid(row=row, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(appf, text="Font zoom:").grid(row=3, column=0, sticky="w", pady=8)
         zoom_var = ctk.DoubleVar(value=self.global_settings.get("font_zoom", 1.0))
-
-        zoom_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        zoom_frame.grid(row=row, column=1, columnspan=2, sticky="w", pady=8, padx=(10, 0))
-
-        zoom_slider = ctk.CTkSlider(
-            zoom_frame,
-            from_=0.8,
-            to=2.0,
-            number_of_steps=12,
-            variable=zoom_var,
-            width=120
-        )
+        zoom_frame = ctk.CTkFrame(appf, fg_color="transparent")
+        zoom_frame.grid(row=3, column=1, columnspan=2, sticky="w", pady=8, padx=(10, 0))
+        zoom_slider = ctk.CTkSlider(zoom_frame, from_=0.8, to=2.0,
+                                    number_of_steps=12, variable=zoom_var, width=120)
         zoom_slider.pack(side="left")
-
         zoom_label = ctk.CTkLabel(zoom_frame, text=f"{zoom_var.get():.1f}x", width=40)
         zoom_label.pack(side="left", padx=(5, 0))
-
-        # Debounce for zoom
         zoom_timer = [None]
 
         def on_zoom_change(val):
@@ -114,132 +130,118 @@ class AppDialogsMixin:
                     save_global_settings(self.global_settings)
                     dialog.destroy()
                     self.rebuild_ui()
-                    self.after(150, self.show_global_settings)
+                    self.after(150, lambda: self.show_global_settings("Appearance"))
             zoom_timer[0] = dialog.after(500, apply_zoom)
 
         zoom_slider.configure(command=on_zoom_change)
-        row += 1
 
-        # Separator
-        ctk.CTkLabel(main_frame, text="").grid(row=row, column=0, pady=5)
-        row += 1
-
-        # === GIT SECTION ===
-        ctk.CTkLabel(main_frame, text="Git", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        row += 1
-
-        # Git binary
-        ctk.CTkLabel(main_frame, text="Executable:").grid(row=row, column=0, sticky="w", pady=8)
-        git_entry = ctk.CTkEntry(main_frame, width=250)
+        # =============================== GIT ================================
+        gitf = sections["Git"]
+        section_title(gitf, "Git")
+        ctk.CTkLabel(gitf, text="Executable:").grid(row=1, column=0, sticky="w", pady=8)
+        git_entry = ctk.CTkEntry(gitf, width=250)
         git_entry.insert(0, self.global_settings.get("git_binary", "git"))
-        git_entry.grid(row=row, column=1, sticky="ew", pady=8, padx=(10, 5))
+        git_entry.grid(row=1, column=1, sticky="ew", pady=8, padx=(10, 5))
 
         def browse_git():
             path = filedialog.askopenfilename(
-                title="Select Git executable",
-                filetypes=[("Executables", "*")]
-            )
+                title="Select Git executable", filetypes=[("Executables", "*")])
             if path:
                 git_entry.delete(0, "end")
                 git_entry.insert(0, path)
 
-        ctk.CTkButton(main_frame, text="📂", width=40, command=browse_git).grid(
-            row=row, column=2, pady=8)
-        row += 1
+        ctk.CTkButton(gitf, text="📂", width=40, command=browse_git).grid(
+            row=1, column=2, pady=8)
+        gitf.columnconfigure(1, weight=1)
 
-        # Separator
-        ctk.CTkLabel(main_frame, text="").grid(row=row, column=0, pady=5)
-        row += 1
+        # ============================= GENERAL =============================
+        genf = sections["General"]
+        section_title(genf, "General")
+        grow = 1
 
-        # === OPTIONS SECTION ===
-        ctk.CTkLabel(main_frame, text="Options", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        row += 1
-
-        # Auto-start polling
         auto_poll_var = ctk.BooleanVar(value=self.global_settings.get("auto_start_polling", False))
-        ctk.CTkCheckBox(main_frame, text="Auto-start polling",
-                       variable=auto_poll_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(genf, text="Auto-start polling",
+                       variable=auto_poll_var).grid(row=grow, column=0, columnspan=3, sticky="w", pady=6)
+        grow += 1
 
-        # Start collapsed
         collapsed_var = ctk.BooleanVar(value=self.global_settings.get("start_collapsed", False))
-        ctk.CTkCheckBox(main_frame, text="Start with log collapsed",
-                       variable=collapsed_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(genf, text="Start with log collapsed",
+                       variable=collapsed_var).grid(row=grow, column=0, columnspan=3, sticky="w", pady=6)
+        grow += 1
 
-        # Advanced mode
         advanced_var = ctk.BooleanVar(value=self.global_settings.get("advanced_mode", False))
-        ctk.CTkCheckBox(main_frame, text="Advanced mode (click tab=polling, double-click=sync)",
-                       variable=advanced_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(genf, text="Advanced mode (click tab=polling, double-click=sync)",
+                       variable=advanced_var).grid(row=grow, column=0, columnspan=3, sticky="w", pady=6)
+        grow += 1
 
-        # Desktop notifications
         notif_var = ctk.BooleanVar(value=self.global_settings.get("desktop_notifications", True))
-        ctk.CTkCheckBox(main_frame, text="Desktop notifications (notify-send)",
-                       variable=notif_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(genf, text="Desktop notifications (notify-send)",
+                       variable=notif_var).grid(row=grow, column=0, columnspan=3, sticky="w", pady=6)
+        grow += 1
 
-        # Restore polling on restart
         restore_poll_var = ctk.BooleanVar(value=self.global_settings.get("restore_polling", False))
-        ctk.CTkCheckBox(main_frame, text="Restore polling state on restart",
-                       variable=restore_poll_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(genf, text="Restore polling state on restart",
+                       variable=restore_poll_var).grid(row=grow, column=0, columnspan=3, sticky="w", pady=6)
+        grow += 1
 
-        # Sync new branches by default
+        # =============================== SYNC ==============================
+        syncf = sections["Sync"]
+        section_title(syncf, "Sync")
+        srow = 1
+
         sync_new_var = ctk.BooleanVar(value=self.global_settings.get("sync_new_branches_by_default", False))
-        ctk.CTkCheckBox(main_frame, text="Enable sync for newly discovered branches",
-                       variable=sync_new_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(syncf, text="Enable sync for newly discovered branches",
+                       variable=sync_new_var).grid(row=srow, column=0, columnspan=3, sticky="w", pady=6)
+        srow += 1
 
-        # Recent sync activity buffer size (status bar)
-        ctk.CTkLabel(main_frame, text="Recent activity entries kept:").grid(row=row, column=0, sticky="w", pady=6)
+        ctk.CTkLabel(syncf, text="Recent activity entries kept:").grid(
+            row=srow, column=0, sticky="w", pady=6)
         recent_limit_var = ctk.StringVar(value=str(self.global_settings.get("recent_sync_limit", 5)))
-        ctk.CTkOptionMenu(main_frame, variable=recent_limit_var,
-                         values=["3", "5", "10", "20"], width=80).grid(row=row, column=1, sticky="w", pady=6)
-        row += 1
+        ctk.CTkOptionMenu(syncf, variable=recent_limit_var,
+                         values=["3", "5", "10", "20"], width=80).grid(
+            row=srow, column=1, sticky="w", pady=6)
+        srow += 1
 
-        # Default polling interval for newly added repos
-        ctk.CTkLabel(main_frame, text="Default polling interval (sec) for new repos:").grid(
-            row=row, column=0, sticky="w", pady=6)
-        default_interval_entry = ctk.CTkEntry(main_frame, width=80)
+        ctk.CTkLabel(syncf, text="Default polling interval (sec) for new repos:").grid(
+            row=srow, column=0, sticky="w", pady=6)
+        default_interval_entry = ctk.CTkEntry(syncf, width=80)
         default_interval_entry.insert(0, str(self.global_settings.get("default_interval_seconds", 60)))
-        default_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
-        row += 1
+        default_interval_entry.grid(row=srow, column=1, sticky="w", pady=6)
+        srow += 1
 
-        # Auto-retry repos that are in an error state
+        # ============================ AUTOMATION ===========================
+        autof = sections["Automation"]
+        section_title(autof, "Polling automation")
+        arow = 1
+
         auto_retry_var = ctk.BooleanVar(value=self.global_settings.get("auto_retry_errored", False))
-        ctk.CTkCheckBox(main_frame, text="Auto-retry repos in error (reconnect)",
-                       variable=auto_retry_var).grid(row=row, column=0, columnspan=3, sticky="w", pady=6)
-        row += 1
+        ctk.CTkCheckBox(autof, text="Auto-retry repos in error (reconnect)",
+                       variable=auto_retry_var).grid(row=arow, column=0, columnspan=3, sticky="w", pady=6)
+        arow += 1
 
-        ctk.CTkLabel(main_frame, text="Auto-retry interval (sec):").grid(
-            row=row, column=0, sticky="w", pady=6)
-        auto_retry_interval_entry = ctk.CTkEntry(main_frame, width=80)
+        ctk.CTkLabel(autof, text="Auto-retry interval (sec):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        auto_retry_interval_entry = ctk.CTkEntry(autof, width=80)
         auto_retry_interval_entry.insert(0, str(self.global_settings.get("auto_retry_interval_seconds", 60)))
-        auto_retry_interval_entry.grid(row=row, column=1, sticky="w", pady=6)
-        row += 1
+        auto_retry_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
 
-        # Watch idle repos → auto-start polling on change (0 = off)
-        ctk.CTkLabel(main_frame, text="Watch idle repos, start on change (sec, 0=off):").grid(
-            row=row, column=0, sticky="w", pady=6)
-        watch_idle_entry = ctk.CTkEntry(main_frame, width=80)
+        ctk.CTkLabel(autof, text="Watch idle repos, start on change (sec, 0=off):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        watch_idle_entry = ctk.CTkEntry(autof, width=80)
         watch_idle_entry.insert(0, str(self.global_settings.get("watch_idle_interval_seconds", 0)))
-        watch_idle_entry.grid(row=row, column=1, sticky="w", pady=6)
-        row += 1
+        watch_idle_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
 
-        # Auto-disable polling after inactivity — in HOURS, shown red to
-        # make the different time unit obvious.
-        ctk.CTkLabel(main_frame, text="Disable polling after inactivity (hours, 0=off):",
-                     text_color="#e05555").grid(
-            row=row, column=0, sticky="w", pady=6)
-        inactivity_entry = ctk.CTkEntry(main_frame, width=80)
+        ctk.CTkLabel(autof, text="Disable polling after inactivity (hours, 0=off):",
+                     text_color="#e05555").grid(row=arow, column=0, sticky="w", pady=6)
+        inactivity_entry = ctk.CTkEntry(autof, width=80)
         inactivity_entry.insert(0, str(self.global_settings.get("inactivity_disable_hours", 24)))
-        inactivity_entry.grid(row=row, column=1, sticky="w", pady=6)
-        row += 1
+        inactivity_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
 
-        main_frame.columnconfigure(1, weight=1)
+        # Show the requested (or first) section.
+        show_section(active_section if active_section in sections else "Appearance")
 
         # Buttons
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")

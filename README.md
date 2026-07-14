@@ -178,6 +178,8 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 
 #### Global settings (Menu ? > Settings)
 
+The dialog is organized into sections (list on the left, content on the right): **Appearance**, **Git**, **General**, **Sync**, **Polling automation**.
+
 | Setting | Description |
 |---------|-------------|
 | Mode (dark/light/system) | Appearance mode |
