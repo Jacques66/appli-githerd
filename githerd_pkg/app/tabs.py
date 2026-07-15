@@ -33,6 +33,35 @@ class AppTabsMixin:
             return "green"
         return "default"
 
+    def _red_reason(self, tab):
+        """Human-readable reason a tab is red (in priority order)."""
+        if not tab.git_healthy:
+            return tab.git_error or "Git not working"
+        if getattr(tab, "sync_error", False):
+            try:
+                info = tab.info_label.cget("text")
+            except Exception:
+                info = ""
+            return info or "sync error"
+        if tab.pending_branches and not tab.polling:
+            return "STOP — human action required (diverged / conflicting branches)"
+        return "unknown"
+
+    def _log_color_transition(self, tab, prev_bg, new_bg):
+        """Log entering/leaving the red state to the tab's own log:
+        orange when it turns red (with the reason), green when it
+        recovers. Other transitions are not logged."""
+        if new_bg == prev_bg:
+            return
+        try:
+            if new_bg == "red":
+                tab.log_msg(f"⬤ RED — {self._red_reason(tab)}", color="#ff9500")
+            elif prev_bg == "red":
+                state = "polling" if new_bg == "green" else "idle"
+                tab.log_msg(f"⬤ GREEN — error cleared ({state})", color="#4ade80")
+        except Exception:
+            pass
+
     def update_tab_color(self, tab):
         """Update tab button color from `tab.polling` / health / errors.
 
@@ -52,6 +81,15 @@ class AppTabsMixin:
             indicator = "●"
         else:
             indicator = ""
+
+        # Log red<->recovery transitions once, before the redraw
+        # short-circuit, keyed on bg_state alone (indicator changes must
+        # not re-trigger a log line).
+        prev_bg = getattr(tab, "_last_bg_state", None)
+        if bg_state != prev_bg:
+            tab._last_bg_state = bg_state
+            if prev_bg is not None:  # skip the very first paint at startup
+                self._log_color_transition(tab, prev_bg, bg_state)
 
         cached = getattr(tab, "_last_color_state", None)
         new_state = (bg_state, indicator)

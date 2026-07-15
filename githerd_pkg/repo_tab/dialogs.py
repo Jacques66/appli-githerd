@@ -207,11 +207,29 @@ class RepoTabDialogsMixin:
             self.app.clipboard_clear()
             self.app.clipboard_append(text)
 
-    def log_msg(self, txt):
-        """Log a message with timestamp."""
+    def log_msg(self, txt, color=None):
+        """Log a message with timestamp.
+
+        color: optional hex string (e.g. "#ff9500"); when given, the
+        line is rendered in that color via a Tk text tag.
+        """
         ts = datetime.now().strftime("%H:%M:%S")
         self.log.configure(state="normal")
-        self.log.insert("end", f"[{ts}] {txt}\n")
+        line = f"[{ts}] {txt}\n"
+        tag = None
+        if color:
+            tag = "c" + color.lstrip("#")
+            try:
+                self.log._textbox.tag_config(tag, foreground=color)
+            except Exception:
+                tag = None
+        try:
+            if tag:
+                self.log.insert("end", line, tag)
+            else:
+                self.log.insert("end", line)
+        except Exception:
+            self.log.insert("end", line)
         self.log.see("end")
         self.log.configure(state="disabled")
 
