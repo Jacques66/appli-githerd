@@ -240,6 +240,10 @@ class AppTabsMixin:
         btn.bind("<Button-2>", lambda e, n=tab_name: self.on_tab_middle_click(n))
         # Right-click for context menu
         btn.bind("<Button-3>", lambda e, n=tab_name: self.on_tab_right_click(e, n))
+        # Drag-and-drop to reorder tabs
+        btn.bind("<ButtonPress-1>", lambda e, n=tab_name: self._on_tab_drag_press(e, n), add="+")
+        btn.bind("<B1-Motion>", lambda e, n=tab_name: self._on_tab_drag_motion(e, n), add="+")
+        btn.bind("<ButtonRelease-1>", lambda e, n=tab_name: self._on_tab_drag_release(e, n), add="+")
         self.tab_buttons[tab_name] = btn
 
         # Create content directly in container
@@ -508,6 +512,72 @@ class AppTabsMixin:
         """Get display name for a repo (alias or folder name)."""
         aliases = self.global_settings.get("tab_aliases", {})
         return aliases.get(repo_path, Path(repo_path).name)
+
+    # ------------------------------------------------------------------
+    # Drag-and-drop tab reordering
+    # ------------------------------------------------------------------
+
+    def _on_tab_drag_press(self, event, tab_name):
+        """Record the start of a potential tab drag."""
+        self._drag_tab = tab_name
+        self._drag_start_x = event.x_root
+        self._drag_moved = False
+
+    def _on_tab_drag_motion(self, event, tab_name):
+        """Live-reorder the tab buttons as the pointer moves. A small
+        threshold avoids treating a normal click's jitter as a drag."""
+        if getattr(self, "_drag_tab", None) is None:
+            return
+        if not self._drag_moved and abs(event.x_root - self._drag_start_x) < 6:
+            return
+        self._drag_moved = True
+
+        order = list(self.tab_buttons.keys())
+        # Find the button whose horizontal center is to the right of the
+        # pointer — the dragged tab is inserted before it.
+        target = None
+        for name in order:
+            if name == self._drag_tab:
+                continue
+            b = self.tab_buttons[name]
+            try:
+                center = b.winfo_rootx() + b.winfo_width() / 2
+            except Exception:
+                continue
+            if event.x_root < center:
+                target = name
+                break
+
+        new_order = [n for n in order if n != self._drag_tab]
+        if target is None:
+            new_order.append(self._drag_tab)
+        else:
+            new_order.insert(new_order.index(target), self._drag_tab)
+
+        if new_order != order:
+            self._apply_tab_order(new_order, repack=True)
+
+    def _on_tab_drag_release(self, event, tab_name):
+        """Persist the new order if a drag actually happened."""
+        if getattr(self, "_drag_tab", None) is not None and self._drag_moved:
+            self.save_current_repos()
+        self._drag_tab = None
+        self._drag_moved = False
+
+    def _apply_tab_order(self, new_order, repack=False):
+        """Rebuild the tab dicts in `new_order` (so persistence and the
+        title reflect it) and optionally re-pack the buttons."""
+        def reorder(d):
+            return {n: d[n] for n in new_order if n in d}
+        self.tabs = reorder(self.tabs)
+        self.tab_paths = reorder(self.tab_paths)
+        self.tab_frames = reorder(self.tab_frames)
+        self.tab_buttons = reorder(self.tab_buttons)
+        if repack:
+            for n in new_order:
+                self.tab_buttons[n].pack_forget()
+            for n in new_order:
+                self.tab_buttons[n].pack(side="left", padx=(0, 8), pady=8)
 
     def find_known_repo(self, path):
         """Return (existing_raw_path, kind) if `path` matches an

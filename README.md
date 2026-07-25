@@ -86,6 +86,7 @@ If the chosen folder is already known to GitHerd — either currently open or in
 
 ### Managing tabs
 
+- **Drag** a tab left/right to reorder it; the new order is saved and restored on next launch
 - **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)
 - **Right-click** on a tab to show the context menu:
   - **Run** — trigger an immediate sync for this repo
