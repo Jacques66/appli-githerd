@@ -241,12 +241,26 @@ class RepoTabUIMixin:
         self.log_visible = not self.log_visible
 
     def show_merge_button(self):
-        """Show the merge button."""
-        self.btn_merge.pack(side="left", padx=6)
+        """Show the merge button. Thread-safe."""
+        self.app.ui_call(lambda: self.btn_merge.pack(side="left", padx=6))
 
     def hide_merge_button(self):
-        """Hide the merge button."""
-        self.btn_merge.pack_forget()
+        """Hide the merge button. Thread-safe."""
+        self.app.ui_call(lambda: self.btn_merge.pack_forget())
+
+    def set_state(self, text):
+        """Thread-safe update of the state label (top status line).
+
+        _do_sync / initial_scan run on worker threads; writing to Tk
+        widgets from a non-main thread is not safe (it intermittently
+        deadlocks the Tcl interpreter → full UI freeze), so route it
+        through the main-thread dispatcher.
+        """
+        self.app.ui_call(lambda t=text: self.state_label.configure(text=t))
+
+    def set_info(self, text):
+        """Thread-safe update of the info label (second status line)."""
+        self.app.ui_call(lambda t=text: self.info_label.configure(text=t))
 
     def disable_tab(self, error_msg):
         """Disable tab due to error. Thread-safe."""

@@ -58,8 +58,8 @@ class RepoTabPollingMixin:
             local_ahead = local_main_ahead(self.remote, self.main,
                                           cwd=self.repo_path, git=self.git)
             if local_ahead > 0:
-                self.state_label.configure(text="Local main ahead")
-                self.info_label.configure(text=f"+{local_ahead} commits to push — click Sync now")
+                self.set_state("Local main ahead")
+                self.set_info(f"+{local_ahead} commits to push — click Sync now")
                 return
 
             branches = get_tracked_branches(self.remote, self.prefix,
@@ -96,14 +96,14 @@ class RepoTabPollingMixin:
 
                 if behind_list:
                     names = [f"{b[0]} (-{b[1]})" for b in behind_list]
-                    self.state_label.configure(text="Branches behind")
-                    self.info_label.configure(text=f"To synchronize: {', '.join(names)}")
+                    self.set_state("Branches behind")
+                    self.set_info(f"To synchronize: {', '.join(names)}")
                 else:
-                    self.state_label.configure(text="Idle")
-                    self.info_label.configure(text="All branches are synchronized")
+                    self.set_state("Idle")
+                    self.set_info("All branches are synchronized")
             elif len(diverged_list) == 0 and len(ahead_list) == 1:
-                self.state_label.configure(text="1 branch ahead")
-                self.info_label.configure(text=f"Ready to sync: {ahead_list[0]}")
+                self.set_state("1 branch ahead")
+                self.set_info(f"Ready to sync: {ahead_list[0]}")
             else:
                 all_names = [b[0] for b in diverged_list] + ahead_list
                 self.pending_branches = all_names
@@ -119,20 +119,20 @@ class RepoTabPollingMixin:
 
                 stop_branches = ", ".join(all_names)
                 if disjoint:
-                    self.state_label.configure(text="STOP — Merge possible")
-                    self.info_label.configure(text=f"Disjoint files. {msg}")
-                    self.app.ui_call(self.show_merge_button)
+                    self.set_state("STOP — Merge possible")
+                    self.set_info(f"Disjoint files. {msg}")
+                    self.show_merge_button()
                     self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
                 else:
-                    self.state_label.configure(text="STOP — Human action required")
-                    self.info_label.configure(text=msg)
+                    self.set_state("STOP — Human action required")
+                    self.set_info(msg)
                     self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
 
                 self.app.ui_call(lambda: self.app.update_tab_color(self))
 
         except Exception as e:
-            self.state_label.configure(text="ERROR")
-            self.info_label.configure(text=str(e))
+            self.set_state("ERROR")
+            self.set_info(str(e))
             self.app.ui_call(lambda: self.app.update_tab_color(self))
 
     def polling_loop(self):

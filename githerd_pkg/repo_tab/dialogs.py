@@ -208,30 +208,40 @@ class RepoTabDialogsMixin:
             self.app.clipboard_append(text)
 
     def log_msg(self, txt, color=None):
-        """Log a message with timestamp.
+        """Log a message with timestamp. Thread-safe.
+
+        log_msg is called from worker threads (polling/sync). Writing to
+        the Tk textbox off the main thread can deadlock the Tcl
+        interpreter, so the actual widget mutation is marshalled onto
+        the main loop via the app dispatcher. Message ordering is
+        preserved because all calls share the single ui_call queue.
 
         color: optional hex string (e.g. "#ff9500"); when given, the
         line is rendered in that color via a Tk text tag.
         """
         ts = datetime.now().strftime("%H:%M:%S")
-        self.log.configure(state="normal")
         line = f"[{ts}] {txt}\n"
-        tag = None
-        if color:
-            tag = "c" + color.lstrip("#")
+
+        def _write():
+            self.log.configure(state="normal")
+            tag = None
+            if color:
+                tag = "c" + color.lstrip("#")
+                try:
+                    self.log._textbox.tag_config(tag, foreground=color)
+                except Exception:
+                    tag = None
             try:
-                self.log._textbox.tag_config(tag, foreground=color)
+                if tag:
+                    self.log.insert("end", line, tag)
+                else:
+                    self.log.insert("end", line)
             except Exception:
-                tag = None
-        try:
-            if tag:
-                self.log.insert("end", line, tag)
-            else:
                 self.log.insert("end", line)
-        except Exception:
-            self.log.insert("end", line)
-        self.log.see("end")
-        self.log.configure(state="disabled")
+            self.log.see("end")
+            self.log.configure(state="disabled")
+
+        self.app.ui_call(_write)
 
     def export_log(self):
         """Export log to file."""

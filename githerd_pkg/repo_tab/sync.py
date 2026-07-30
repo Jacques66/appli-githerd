@@ -46,7 +46,7 @@ class RepoTabSyncMixin:
 
     def _do_sync(self):
         """Perform the actual sync operation."""
-        self.state_label.configure(text="Sync…")
+        self.set_state("Sync…")
         self.hide_merge_button()
         self.pending_branches = []
         # Clear any prior sync-error flag — the tab will go back to red
@@ -61,7 +61,7 @@ class RepoTabSyncMixin:
             if url:
                 self.log_msg(f"  remote URL: {url}")
             self.log_msg(f"  repo path : {self.repo_path}")
-            self.state_label.configure(text="ERROR")
+            self.set_state("ERROR")
             self.sync_error = True
             self.stop_polling()
             return
@@ -79,12 +79,12 @@ class RepoTabSyncMixin:
             if code == 0:
                 self.log_msg(out if out else "  (ok)")
                 self.log_msg("Main branch pushed, remote initialized")
-                self.state_label.configure(text="Sync OK")
-                self.info_label.configure(text="Remote initialized with main branch")
+                self.set_state("Sync OK")
+                self.set_info("Remote initialized with main branch")
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), self.main)
             else:
                 self.log_msg(f"ERROR bootstrap push: {err}")
-                self.state_label.configure(text="ERROR")
+                self.set_state("ERROR")
                 self.sync_error = True
                 self.stop_polling()
             return
@@ -92,8 +92,8 @@ class RepoTabSyncMixin:
         if local_ahead > 0:
             self.log_msg(f"Local main ahead by {local_ahead} commits → push")
             if self.push_main_and_branches():
-                self.state_label.configure(text="Sync OK")
-                self.info_label.configure(text=f"Pushed {local_ahead} local commits")
+                self.set_state("Sync OK")
+                self.set_info(f"Pushed {local_ahead} local commits")
                 self.log_msg("Push completed successfully")
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), self.main)
             return
@@ -190,20 +190,20 @@ class RepoTabSyncMixin:
                     )
                     if code != 0:
                         self.log_msg(f"ERROR push {branch_name}: {err}")
-                        self.state_label.configure(text="ERROR")
+                        self.set_state("ERROR")
                         self.sync_error = True
                         self.stop_polling()
                         return
                     self.log_msg(out if out else "  (ok)")
 
-                self.state_label.configure(text="Sync OK")
-                self.info_label.configure(text=f"{len(behind_branches)} branches synchronized")
+                self.set_state("Sync OK")
+                self.set_info(f"{len(behind_branches)} branches synchronized")
                 self.log_msg("Behind branches synchronized")
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), self.main)
                 return
 
-            self.state_label.configure(text="Idle")
-            self.info_label.configure(text="All branches are synchronized")
+            self.set_state("Idle")
+            self.set_info("All branches are synchronized")
             self.log_msg("Nothing to do")
             self.last_commit_count.clear()
             return
@@ -224,14 +224,14 @@ class RepoTabSyncMixin:
 
             stop_branches = ", ".join(all_names)
             if disjoint:
-                self.state_label.configure(text="STOP — Merge possible")
-                self.info_label.configure(text=f"Disjoint files. {msg}")
+                self.set_state("STOP — Merge possible")
+                self.set_info(f"Disjoint files. {msg}")
                 self.log_msg("Disjoint files — manual merge possible")
                 self.show_merge_button()
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
             else:
-                self.state_label.configure(text="STOP — Human action required")
-                self.info_label.configure(text=f"Potential file conflict. {msg}")
+                self.set_state("STOP — Human action required")
+                self.set_info(f"Potential file conflict. {msg}")
                 self.log_msg("STOP: common files detected")
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), stop_branches)
             self.stop_polling()
@@ -245,8 +245,8 @@ class RepoTabSyncMixin:
         )
         if code != 0:
             self.log_msg(f"ERROR pull: {err}")
-            self.state_label.configure(text="ERROR")
-            self.info_label.configure(text=f"Pull failed: {err[:100]}")
+            self.set_state("ERROR")
+            self.set_info(f"Pull failed: {err[:100]}")
             self.sync_error = True
             self.stop_polling()
             return
@@ -256,11 +256,11 @@ class RepoTabSyncMixin:
             return
 
         self.last_commit_count[leader] = 0
-        self.state_label.configure(text="Sync OK")
+        self.set_state("Sync OK")
         branches = get_tracked_branches(self.remote, self.prefix,
                                         cwd=self.repo_path, git=self.git)
         other_count = len(branches) - 1
-        self.info_label.configure(text=f"Pull from {leader}, push to {other_count} other branches")
+        self.set_info(f"Pull from {leader}, push to {other_count} other branches")
         self.log_msg("Sync completed successfully")
         self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), leader)
 
@@ -275,7 +275,7 @@ class RepoTabSyncMixin:
                                 cwd=self.repo_path)
         if code != 0:
             self.log_msg(f"ERROR push main: {err}")
-            self.state_label.configure(text="ERROR")
+            self.set_state("ERROR")
             self.sync_error = True
             self.stop_polling()
             return False
@@ -301,8 +301,8 @@ class RepoTabSyncMixin:
                                     cwd=self.repo_path)
             if code != 0:
                 self.log_msg(f"ERROR push {target}: {err}")
-                self.state_label.configure(text="STOP — Push failed")
-                self.info_label.configure(text=f"Push to {target} failed")
+                self.set_state("STOP — Push failed")
+                self.set_info(f"Push to {target} failed")
                 self.sync_error = True
                 self.stop_polling()
                 return False
@@ -329,7 +329,7 @@ class RepoTabSyncMixin:
             self.log_msg("No branches pending merge")
             return
 
-        self.state_label.configure(text="Merging…")
+        self.set_state("Merging…")
         self.hide_merge_button()
         self.sync_error = False
 
@@ -344,8 +344,8 @@ class RepoTabSyncMixin:
             )
             if code != 0:
                 self.log_msg(f"ERROR merge {branch}: {err}")
-                self.state_label.configure(text="ERROR — Merge failed")
-                self.info_label.configure(text=f"Merge of {branch} failed")
+                self.set_state("ERROR — Merge failed")
+                self.set_info(f"Merge of {branch} failed")
                 run_git([self.git, "merge", "--abort"], cwd=self.repo_path)
                 self.sync_error = True
                 self.stop_polling()
@@ -357,8 +357,8 @@ class RepoTabSyncMixin:
 
         self.pending_branches = []
         self.last_commit_count.clear()
-        self.state_label.configure(text="Merge OK")
-        self.info_label.configure(text=f"Merged {len(branches)} branches")
+        self.set_state("Merge OK")
+        self.set_info(f"Merged {len(branches)} branches")
         self.log_msg("Merge completed successfully")
         self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), ", ".join(branches))
 
