@@ -4,6 +4,8 @@
 
 Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding sessions (Claude Code, Cursor, Copilot) or any workflow with multiple active branches.
 
+<img width="1562" height="349" alt="image" src="https://github.com/user-attachments/assets/160d3c16-51a0-4ceb-bb1b-9ba14e25e6e0" />
+
 ## Features
 
 - 🔄 **Real-time polling** — Configurable interval per repo with countdown display
