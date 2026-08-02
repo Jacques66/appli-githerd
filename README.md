@@ -4,7 +4,7 @@
 
 Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding sessions (Claude Code, Cursor, Copilot) or any workflow with multiple active branches.
 
-<img width="812" height="152" alt="image" src="https://github.com/user-attachments/assets/621fa0a5-2064-4d30-85ea-3eef03c47b2d" />
+<img width="862" height="161" alt="image" src="https://github.com/user-attachments/assets/621fa0a5-2064-4d30-85ea-3eef03c47b2d" />
 
 <img width="250" height="200" alt="image" src="https://github.com/user-attachments/assets/2b370687-0219-4f84-9ee5-65334fd6e000" /><img width="250" height="200" alt="image" src="https://github.com/user-attachments/assets/298fca7c-865c-4ab4-8b1f-b2b1003e908a" /><img width="160" height="200" alt="image" src="https://github.com/user-attachments/assets/18a775a4-d45e-466a-a88a-861b6fcf0426" /><img width="252" height="200" alt="image" src="https://github.com/user-attachments/assets/1ac7faae-1660-4503-8be5-2b4613515753" />
 
