@@ -6,6 +6,13 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 
 <img width="1834" height="346" alt="image" src="https://github.com/user-attachments/assets/8c284a1c-7812-4284-9660-1b787a572802" />
 
+<img width="669" height="778" alt="image" src="https://github.com/user-attachments/assets/18a775a4-d45e-466a-a88a-861b6fcf0426" />
+
+<img width="1028" height="806" alt="image" src="https://github.com/user-attachments/assets/2b370687-0219-4f84-9ee5-65334fd6e000" /><img width="1028" height="809" alt="image" src="https://github.com/user-attachments/assets/298fca7c-865c-4ab4-8b1f-b2b1003e908a" />
+
+<img width="789" height="745" alt="image" src="https://github.com/user-attachments/assets/1ac7faae-1660-4503-8be5-2b4613515753" />
+
+
 ## Features
 
 - 🔄 **Real-time polling** — Configurable interval per repo with countdown display
