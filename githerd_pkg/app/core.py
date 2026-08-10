@@ -52,14 +52,27 @@ class AppCoreMixin:
         self._ui_queue.put(fn)
 
     def _drain_ui_queue(self):
-        """Runs on the main thread via after(). Drains pending UI calls."""
+        """Runs on the main thread via after(). Drains pending UI calls.
+
+        Bounded per tick: if many repos flood the queue at once (each
+        _do_sync emits label + log updates), draining to empty in one
+        pass would keep the main thread inside this loop and starve the
+        Tk event loop — the GUI freezes while worker threads keep going.
+        Draining at most _UI_DRAIN_CAP callbacks then yielding back to
+        Tk keeps the UI responsive under load.
+        """
+        drained = 0
         try:
-            while True:
+            while drained < 400:
                 fn = self._ui_queue.get_nowait()
                 try:
                     fn()
                 except Exception:
                     pass
+                drained += 1
+            # Hit the cap with items still queued: yield to Tk, resume ASAP.
+            self.after(1, self._drain_ui_queue)
+            return
         except queue.Empty:
             pass
         self.after(30, self._drain_ui_queue)

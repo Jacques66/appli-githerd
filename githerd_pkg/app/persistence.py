@@ -18,7 +18,6 @@ from ..config import (
     load_saved_repos as load_repos_from_file, save_repos,
     apply_theme_settings
 )
-from ..git_utils import is_git_repo
 
 
 class AppPersistenceMixin:
@@ -35,7 +34,6 @@ class AppPersistenceMixin:
         drop it from persistence.
         """
         repos = load_repos_from_file()
-        git = self.global_settings.get("git_binary", "git")
         hidden_repos = self.global_settings.get("hidden_repos", [])
         # Repos present in repos.json but not turned into a live tab this
         # session (missing folder, not a git repo, or an open error).
@@ -47,12 +45,19 @@ class AppPersistenceMixin:
             if repo_path in hidden_repos:
                 continue
             try:
-                if Path(repo_path).exists() and is_git_repo(repo_path, git):
+                # Cheap filesystem check ONLY — do NOT shell out to git
+                # here. is_git_repo() runs `git rev-parse` in a
+                # subprocess, on the MAIN thread, once per repo; a single
+                # repo on a slow/blocked mount (common on WSL /mnt/c)
+                # then hangs the whole launch. The real git health check
+                # runs per-tab in initial_scan (a worker thread).
+                p = Path(repo_path)
+                if p.exists() and (p / ".git").exists():
                     self.add_repo(repo_path, switch_to=False)
                 else:
-                    # Folder gone / not a git repo right now: keep the
-                    # entry rather than erasing it (the drive might be
-                    # unmounted, WSL path temporarily absent, etc.).
+                    # Folder gone / no .git right now: keep the entry
+                    # rather than erasing it (drive unmounted, WSL path
+                    # temporarily absent, unusual git layout, etc.).
                     self._unloaded_repos.append(repo_path)
             except Exception as e:
                 import sys
@@ -186,10 +191,11 @@ class AppPersistenceMixin:
             self.content_container = ctk.CTkFrame(self)
             self.content_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
 
-            # Reload repos
-            git = self.global_settings.get("git_binary", "git")
+            # Reload repos — cheap filesystem check only (see
+            # load_saved_repos: no main-thread git subprocess).
             for repo_path in saved_repos:
-                if Path(repo_path).exists() and is_git_repo(repo_path, git):
+                p = Path(repo_path)
+                if p.exists() and (p / ".git").exists():
                     self.add_repo(repo_path)
 
             # Restore active tab
