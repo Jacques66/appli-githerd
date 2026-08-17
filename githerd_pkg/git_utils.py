@@ -6,8 +6,43 @@ Low-level Git operations and helpers.
 """
 
 import subprocess
+import threading
 
 from .config import DEFAULT_REPO_CONFIG
+
+
+# ---------------------------------------------------------------------------
+# Consecutive git-timeout tracker (circuit breaker input)
+#
+# When the WSL↔Windows interop dies, EVERY git.exe call times out. Rather
+# than keep hammering it (which makes things worse), the App watches this
+# counter and suspends all polling after N consecutive timeouts. A single
+# non-timeout outcome (success OR a normal error return) resets it, so a
+# lone slow call never trips the breaker.
+# ---------------------------------------------------------------------------
+_timeout_lock = threading.Lock()
+_consecutive_timeouts = 0
+
+
+def _note_git_result(timed_out):
+    global _consecutive_timeouts
+    with _timeout_lock:
+        if timed_out:
+            _consecutive_timeouts += 1
+        else:
+            _consecutive_timeouts = 0
+        return _consecutive_timeouts
+
+
+def consecutive_git_timeouts():
+    with _timeout_lock:
+        return _consecutive_timeouts
+
+
+def reset_git_timeouts():
+    global _consecutive_timeouts
+    with _timeout_lock:
+        _consecutive_timeouts = 0
 
 
 def run_git(cmd, cwd=None, timeout=30):
@@ -26,8 +61,10 @@ def run_git(cmd, cwd=None, timeout=30):
             cwd=cwd,
             timeout=timeout
         )
+        _note_git_result(False)
         return p.returncode, p.stdout.strip(), p.stderr.strip()
     except subprocess.TimeoutExpired as e:
+        _note_git_result(True)
         partial = ""
         if e.stderr:
             try:
@@ -40,8 +77,10 @@ def run_git(cmd, cwd=None, timeout=30):
             msg += f" — last stderr: {partial}"
         return 1, "", msg
     except FileNotFoundError:
+        _note_git_result(False)
         return 1, "", f"Command not found: {cmd[0]}"
     except Exception as e:
+        _note_git_result(False)
         return 1, "", str(e)
 
 

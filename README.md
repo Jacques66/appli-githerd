@@ -155,6 +155,8 @@ When polling is active on a tab, a tiny white number (e.g. `42`) appears in the 
 | Restart | Save state and re-launch GitHerd (`Ctrl+R`) |
 | Quit | Close GitHerd, saving the polling state for next start (`Ctrl+Q`) |
 
+**Git-timeout circuit breaker:** if git times out **3 times in a row** (typically the WSL↔Windows interop going down, or git otherwise wedged), GitHerd automatically suspends **all** polling — using the same snapshot as *Suspend all polling* — so it stops hammering a dead git. A dialog explains what happened. While the breaker is open, the auto-retry and idle-watch loops stay off. Polling resumes **only by an explicit action**: a tab's *Start polling* (one at a time), or **File → Restore all polling**.
+
 ### Menu Repository
 
 The **Repository** menu changes dynamically based on the currently selected tab:

@@ -140,7 +140,10 @@ class AppTabsMixin:
         using the current interval so setting changes take effect on
         the next tick."""
         settings = self.global_settings
-        if settings.get("auto_retry_errored", False):
+        # While the git-timeout circuit breaker is open, stay off — the
+        # whole point is to STOP touching a wedged git until the user
+        # resumes manually.
+        if settings.get("auto_retry_errored", False) and not getattr(self, "_polling_circuit_open", False):
             for tab in self.tabs.values():
                 # Skip repos that already have a sync/retry in flight.
                 if self._tab_in_error(tab) and not tab.lock.locked():
@@ -159,12 +162,14 @@ class AppTabsMixin:
             interval = int(settings.get("watch_idle_interval_seconds", 0) or 0)
         except (TypeError, ValueError):
             interval = 0
-        if interval > 0:
+        if interval > 0 and not getattr(self, "_polling_circuit_open", False):
             for tab in self.tabs.values():
                 if (tab.git_healthy and not tab.polling
                         and not getattr(tab, "sync_error", False)
                         and not tab.lock.locked()):
                     threading.Thread(target=tab.watch_for_changes, daemon=True).start()
+            delay = max(5, interval) * 1000
+        elif interval > 0:
             delay = max(5, interval) * 1000
         else:
             delay = 5000  # keep polling the setting so it can be turned on live

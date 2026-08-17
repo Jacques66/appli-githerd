@@ -41,6 +41,10 @@ class AppCoreMixin:
         # Names of tabs that were polling when "Suspend all polling"
         # was invoked. Empty when no suspend is pending.
         self._suspended_polling = []
+        # True when the git-timeout circuit breaker has suspended polling.
+        # While open, the auto-retry / watch-idle loops stay off; only an
+        # explicit user action (File → Restore all polling) closes it.
+        self._polling_circuit_open = False
 
     def ui_call(self, fn):
         """Thread-safe: schedule fn() to run on the Tk main thread.
@@ -312,19 +316,7 @@ class AppCoreMixin:
         "Suspend all polling" and "Restore all polling" accordingly.
         """
         if not self._suspended_polling:
-            # Suspend phase — snapshot then stop
-            for tab_name, tab in self.tabs.items():
-                if tab.polling:
-                    self._suspended_polling.append(tab_name)
-                    tab.polling = False
-                    tab.polling_interrupted = False
-                    tab.stop_event.set()
-                    tab.stop_countdown()
-                    tab.btn_poll.configure(text="▶ Start polling")
-                    self.update_tab_color(tab)
-            if self._suspended_polling:
-                self._set_suspend_menu_label("Restore all polling")
-            self.update_title()
+            self._suspend_all_polling()
         else:
             # Restore phase — re-enable polling on snapshotted tabs
             # that still exist and aren't already polling.
@@ -334,7 +326,54 @@ class AppCoreMixin:
                     tab.toggle_polling()
             self._suspended_polling = []
             self._set_suspend_menu_label("Suspend all polling")
+            self._polling_circuit_open = False
+            from .. import git_utils
+            git_utils.reset_git_timeouts()
             self.update_title()
+
+    def _suspend_all_polling(self):
+        """Snapshot the currently-polling tabs and stop them. Flips the
+        File menu entry to 'Restore all polling'. Shared by the manual
+        menu toggle and the git-timeout circuit breaker."""
+        for tab_name, tab in self.tabs.items():
+            if tab.polling:
+                self._suspended_polling.append(tab_name)
+                tab.polling = False
+                tab.polling_interrupted = False
+                tab.stop_event.set()
+                tab.stop_countdown()
+                tab.btn_poll.configure(text="▶ Start polling")
+                self.update_tab_color(tab)
+        if self._suspended_polling:
+            self._set_suspend_menu_label("Restore all polling")
+        self.update_title()
+
+    def _check_git_circuit(self):
+        """Circuit breaker: if git has timed out N times in a row (the
+        WSL interop is down, or git is otherwise wedged), suspend ALL
+        polling so GitHerd stops hammering a dead git. Resumes only by
+        an explicit user action (a tab's Start polling, or File →
+        Restore all polling). Reschedules itself."""
+        from .. import git_utils
+        try:
+            if (not self._polling_circuit_open
+                    and git_utils.consecutive_git_timeouts() >= 3
+                    and any(t.polling for t in self.tabs.values())):
+                self._polling_circuit_open = True
+                self._suspend_all_polling()
+                git_utils.reset_git_timeouts()
+                from tkinter import messagebox
+                self.after(0, lambda: messagebox.showinfo(
+                    "Polling suspended",
+                    "Git timed out 3× in a row (WSL interop down, or git "
+                    "wedged). All polling has been suspended to stop "
+                    "hammering git.\n\nResume manually: a tab's Start "
+                    "polling, or File → Restore all polling.",
+                    parent=self,
+                ))
+        except Exception:
+            pass
+        self.after(2000, self._check_git_circuit)
 
     def _set_suspend_menu_label(self, label):
         """Update the File menu's suspend/restore entry label."""
