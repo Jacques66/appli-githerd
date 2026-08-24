@@ -31,6 +31,9 @@ class TabBar(tk.Canvas):
     INNER_PAD = 8       # horizontal padding inside a tab (top edge)
     DOT_R = 4           # status dot radius
     GAP = 6             # gap between dot and label
+    GLASS_W = 5         # drain gauge width
+    GLASS_H = 12        # drain gauge height
+    GLASS_GAP = 8       # gap between label and gauge (space always reserved)
 
     def __init__(self, master, font_zoom=1.0,
                  on_click=None, on_double=None, on_middle=None,
@@ -111,7 +114,7 @@ class TabBar(tk.Canvas):
         if any(t["name"] == name for t in self.tabs):
             return
         self.tabs.append(dict(name=name, label=label, status=status,
-                              countdown=0, has_update=False))
+                              progress=0.0, has_update=False))
         self._redraw()
 
     def remove_tab(self, name):
@@ -125,15 +128,15 @@ class TabBar(tk.Canvas):
         self._redraw()
 
     def update_tab(self, name, label=None, status=None,
-                   countdown=None, has_update=None):
+                   progress=None, has_update=None):
         for t in self.tabs:
             if t["name"] == name:
                 if label is not None:
                     t["label"] = label
                 if status is not None:
                     t["status"] = status
-                if countdown is not None:
-                    t["countdown"] = countdown
+                if progress is not None:
+                    t["progress"] = max(0.0, min(1.0, float(progress)))
                 if has_update is not None:
                     t["has_update"] = has_update
                 self._redraw()
@@ -149,18 +152,21 @@ class TabBar(tk.Canvas):
 
     # ---- geometry / drawing -----------------------------------------
     def _tab_text(self, t):
+        # No countdown number here — the drain gauge shows it instead, at
+        # a fixed size, so the tab never changes width.
         txt = t["label"]
-        secs = t.get("countdown", 0)
-        if t["status"] == "green" and secs and secs > 0:
-            txt = f"{txt}  {secs}"
         if t.get("has_update"):
             txt = "● " + txt
         return txt
 
     def _tab_width(self, t):
         text_w = self._font.measure(self._tab_text(t))
-        # bottom width = top content width + 2*inner pad + 2*slant
-        return int(text_w + self.DOT_R * 2 + self.GAP + self.INNER_PAD * 2 + self.SLANT * 2)
+        # bottom width = dot + gap + label + reserved gauge slot
+        #                + 2*inner pad + 2*slant.  The gauge slot is
+        #                reserved always so width is constant.
+        return int(text_w + self.DOT_R * 2 + self.GAP
+                   + self.GLASS_GAP + self.GLASS_W
+                   + self.INNER_PAD * 2 + self.SLANT * 2)
 
     def _fill_for(self, t, active):
         s = t["status"]
@@ -277,6 +283,25 @@ class TabBar(tk.Canvas):
                 dx + self.DOT_R + self.GAP, cy, anchor="w",
                 text=self._tab_text(t), font=self._font,
                 fill=self._text_for(t, is_active), tags=(tag,))
+
+            # drain gauge (a little "glass" that empties as the countdown
+            # runs down) — only while polling; fixed size, right-aligned.
+            if t["status"] == "green":
+                gx1 = x0 + W - self.SLANT - self.INNER_PAD
+                gx0 = gx1 - self.GLASS_W
+                gtop = cy - self.GLASS_H / 2
+                gbot = cy + self.GLASS_H / 2
+                frac = max(0.0, min(1.0, t.get("progress", 0.0)))
+                # empty background + outline (the glass)
+                self.create_rectangle(gx0, gtop, gx1, gbot,
+                                      fill=p["strip"], outline=p["dot_green"],
+                                      width=1, tags=(tag,))
+                # liquid: fills from the bottom up to `frac`
+                if frac > 0:
+                    fill_top = gbot - frac * self.GLASS_H
+                    self.create_rectangle(gx0 + 1, fill_top, gx1 - 1, gbot - 1,
+                                          fill=p["dot_green"], outline="",
+                                          tags=(tag,))
 
     # ---- hit testing / events ---------------------------------------
     def _name_at(self, x, y):

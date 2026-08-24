@@ -158,6 +158,7 @@ class RepoTabPollingMixin:
                 except Exception:
                     interval = self.interval
 
+                self._cycle_interval = interval  # for the drain gauge
                 self.next_poll_time = time.time() + interval
 
                 # Wait for interval OR stop signal
@@ -189,6 +190,7 @@ class RepoTabPollingMixin:
             self.polling = True
             self.polling_interrupted = False
             self.last_activity_time = time.time()  # fresh grace period
+            self._cycle_interval = self.interval   # for the drain gauge
             self.stop_event.clear()  # Reset event
             self.btn_poll.configure(text="⏸ Stop polling")
             self.next_poll_time = time.time() + self.interval
@@ -341,29 +343,35 @@ class RepoTabPollingMixin:
             self.after_cancel(self.countdown_job)
             self.countdown_job = None
         self.countdown_label.configure(text="")
-        self._set_button_countdown(0)
+        self._set_progress(0.0)
 
     def update_countdown(self):
-        """Update the countdown display."""
+        """Update the countdown display.
+
+        The in-tab status line keeps the textual "(next sync: Ns)"; the
+        tab strip shows a fixed-size draining gauge instead of a number
+        (a number changes width and shifts the tabs)."""
         if not self.polling:
             self.countdown_label.configure(text="")
-            self._set_button_countdown(0)
+            self._set_progress(0.0)
             return
 
-        remaining = int(self.next_poll_time - time.time())
-        if remaining > 0:
-            self.countdown_label.configure(text=f"(next sync: {remaining}s)")
-            self._set_button_countdown(remaining)
+        remaining = self.next_poll_time - time.time()
+        total = getattr(self, "_cycle_interval", None) or self.interval or 1
+        frac = max(0.0, min(1.0, remaining / total))
+        secs = int(remaining)
+        if secs > 0:
+            self.countdown_label.configure(text=f"(next sync: {secs}s)")
         else:
             self.countdown_label.configure(text="(sync...)")
-            self._set_button_countdown(0)
+        self._set_progress(frac)
 
         self.countdown_job = self.after(1000, self.update_countdown)
 
-    def _set_button_countdown(self, seconds):
-        """Push the countdown seconds into the tab label (main thread)."""
-        if hasattr(self.app, "set_tab_countdown"):
-            self.app.set_tab_countdown(self.tab_name, seconds)
+    def _set_progress(self, frac):
+        """Push the remaining-time fraction (1→0) into the tab gauge."""
+        if hasattr(self.app, "set_tab_progress"):
+            self.app.set_tab_progress(self.tab_name, frac)
 
     def _mark_if_not_active(self):
         """Mark tab as updated if not active."""

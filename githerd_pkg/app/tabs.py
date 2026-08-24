@@ -129,10 +129,11 @@ class AppTabsMixin:
         except Exception:
             pass
 
-    def set_tab_countdown(self, tab_name, seconds):
-        """Feed the polling countdown into the tab label (main thread)."""
+    def set_tab_progress(self, tab_name, frac):
+        """Feed the remaining-time fraction (1→0) into the tab's drain
+        gauge (main thread)."""
         try:
-            self.tab_bar.update_tab(tab_name, countdown=seconds or 0)
+            self.tab_bar.update_tab(tab_name, progress=frac)
         except Exception:
             pass
 
