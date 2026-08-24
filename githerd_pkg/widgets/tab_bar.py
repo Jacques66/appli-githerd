@@ -74,7 +74,8 @@ class TabBar(tk.Canvas):
         dark = (ctk.get_appearance_mode() == "Dark")
         if dark:
             return dict(
-                strip="#14181e", panel="#1b2027",
+                # tray lighter than the (dark) tabs so they read as chips
+                strip="#454d59", panel="#1b2027",
                 idle="#232a33", idle_active="#2b333d",
                 green="#173a26", green_active="#1f5033",
                 red="#3a1d20", red_active="#54282d",
