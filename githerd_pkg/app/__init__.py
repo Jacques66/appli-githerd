@@ -58,9 +58,9 @@ class App(
         self._build_status_bar()
         _trace("_build_status_bar done")
 
-        # Real OS-style tabs (ttk.Notebook)
+        # Trapezoidal tab strip + content pane
         self._build_tabs_container()
-        _trace("tab notebook built")
+        _trace("tabs built")
 
         # Load saved repos
         _trace("load_saved_repos starting …")

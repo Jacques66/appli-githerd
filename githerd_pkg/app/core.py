@@ -23,7 +23,7 @@ class AppCoreMixin:
         self.tabs = {}  # tab_name -> RepoTabContent
         self.tab_paths = {}  # tab_name -> repo_path
         self.global_settings = load_global_settings()
-        self.tab_frames = {}  # tab_name -> RepoTabContent (notebook page)
+        self.tab_frames = {}  # tab_name -> RepoTabContent (content pane)
         self.current_tab = None
         # Thread-safe UI dispatcher: worker threads push callables here,
         # the main thread drains them. Needed because self.after() itself

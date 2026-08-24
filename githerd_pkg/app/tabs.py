@@ -2,14 +2,15 @@
 """
 GitHerd — App tabs mixin.
 
-Real OS-style tabs via ttk.Notebook. Per-tab polling/health status is
-shown as a colored dot on the tab (green = polling, red = error/STOP,
-gray = idle); the countdown and update marker live in the tab label.
+Custom trapezoidal tab strip (widgets.TabBar) above a content pane.
+Per-repo polling/health status is the tab's fill colour (green =
+polling, red = error/STOP, neutral = idle); the active tab is drawn in
+front with a top accent bar. Countdown + update marker live in the
+tab label.
 """
 
 import threading
 import tkinter as tk
-from tkinter import ttk
 from pathlib import Path
 import customtkinter as ctk
 
@@ -18,6 +19,7 @@ from ..config import (
     save_repo_config
 )
 from ..git_utils import is_git_repo, detect_repo_settings
+from ..widgets import TabBar
 from ..repo_tab import RepoTabContent
 
 
@@ -25,94 +27,35 @@ class AppTabsMixin:
     """Mixin for tab management."""
 
     # ------------------------------------------------------------------
-    # Notebook container, style, and status dots
+    # Container: trapezoid tab strip + content pane
     # ------------------------------------------------------------------
 
     def _build_tabs_container(self):
-        """Create the ttk.Notebook that hosts all repo tabs. Called from
-        App.__init__ and rebuild_ui (replaces the old tab_bar + content
-        container)."""
-        self._style_notebook()
-        self._init_status_dots()
-
-        self.notebook = ttk.Notebook(self, style="GitHerd.TNotebook")
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.notebook.bind("<<NotebookTabChanged>>", self._on_notebook_tab_changed)
-        # DnD reorder + advanced double-click + middle/right click
-        self.notebook.bind("<ButtonPress-1>", self._on_nb_press, add="+")
-        self.notebook.bind("<B1-Motion>", self._on_nb_motion, add="+")
-        self.notebook.bind("<ButtonRelease-1>", self._on_nb_release, add="+")
-        self.notebook.bind("<Double-Button-1>", self._on_nb_double, add="+")
-        self.notebook.bind("<Button-2>", self._on_nb_middle, add="+")
-        self.notebook.bind("<Button-3>", self._on_nb_right, add="+")
-
-    def _style_notebook(self):
-        """Style ttk.Notebook to match the CustomTkinter dark/light theme."""
-        dark = (ctk.get_appearance_mode() == "Dark")
-        if dark:
-            bg = "#2b2b2b"
-            tab_bg = "#3d3d3d"
-            tab_fg = "#dddddd"
-            sel_bg = "#1f6aa5"
-            sel_fg = "#ffffff"
-        else:
-            bg = "#dbdbdb"
-            tab_bg = "#c8c8c8"
-            tab_fg = "#000000"
-            sel_bg = "#3a7ebf"
-            sel_fg = "#ffffff"
-
-        style = ttk.Style(self)
-        try:
-            style.theme_use("default")  # most restylable base theme
-        except Exception:
-            pass
-        # ~2x the previous tab size; scales with the user's font zoom.
+        """Create the TabBar (top) and the content pane (below). Called
+        from App.__init__ and rebuild_ui."""
         zoom = self.global_settings.get("font_zoom", 1.0)
-        tab_font = ("TkDefaultFont", max(10, int(18 * zoom)))
-        style.configure("GitHerd.TNotebook", background=bg, borderwidth=0)
-        style.configure(
-            "GitHerd.TNotebook.Tab",
-            background=tab_bg, foreground=tab_fg,
-            padding=[16, 9], borderwidth=0, font=tab_font,
+        self.tab_bar = TabBar(
+            self, font_zoom=zoom,
+            on_click=self.on_tab_click,
+            on_double=self.on_tab_double_click,
+            on_middle=self.hide_repo,
+            on_right=self.on_tab_right_click,
+            on_reorder=self._on_tabs_reordered,
         )
-        style.map(
-            "GitHerd.TNotebook.Tab",
-            background=[("selected", sel_bg), ("active", "#4a4a4a" if dark else "#bcbcbc")],
-            foreground=[("selected", sel_fg)],
-        )
+        # No vertical gap between the strip and the pane so the active
+        # tab reads as connected to the content below.
+        self.tab_bar.pack(fill="x", padx=10, pady=(10, 0))
+        self.content_container = ctk.CTkFrame(self)
+        self.content_container.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-    def _init_status_dots(self):
-        """Create (once) the small colored status-dot images used on
-        each tab. Kept referenced on self so Tk doesn't GC them."""
-        if getattr(self, "_status_dots", None):
-            return
-        self._status_dots = {
-            "green": self._make_status_dot("#4ade80", size=16),
-            "red": self._make_status_dot("#ff5555", size=16),
-            "default": self._make_status_dot("#888888", size=16),
-        }
-
-    def _make_status_dot(self, color, size=12):
-        """Return a small filled-circle PhotoImage of `color`."""
-        img = tk.PhotoImage(width=size, height=size)
-        cx = cy = (size - 1) / 2.0
-        r = size / 2.0 - 0.5
-        for y in range(size):
-            for x in range(size):
-                if (x - cx) ** 2 + (y - cy) ** 2 <= r * r:
-                    img.put(color, to=(x, y))
-                else:
-                    try:
-                        img.transparency_set(x, y, True)
-                    except Exception:
-                        pass
-        return img
-
-    def _status_dot_for(self, bg_state):
-        dots = getattr(self, "_status_dots", None) or {}
-        return dots.get(bg_state, dots.get("default"))
+    def _on_tabs_reordered(self, new_order):
+        """Persist a drag-reorder coming from the TabBar."""
+        def reorder(d):
+            return {n: d[n] for n in new_order if n in d}
+        self.tabs = reorder(self.tabs)
+        self.tab_paths = reorder(self.tab_paths)
+        self.tab_frames = reorder(self.tab_frames)
+        self.save_current_repos()
 
     # ------------------------------------------------------------------
     # Per-tab status: color state, reason, transition logging
@@ -145,9 +88,8 @@ class AppTabsMixin:
         return "unknown"
 
     def _log_color_transition(self, tab, prev_bg, new_bg):
-        """Log entering/leaving the red state to the tab's own log:
-        orange when it turns red (with the reason), green when it
-        recovers. Other transitions are not logged."""
+        """Log entering/leaving red to the tab's own log: orange in,
+        green out. Other transitions are not logged."""
         if new_bg == prev_bg:
             return
         try:
@@ -159,67 +101,44 @@ class AppTabsMixin:
         except Exception:
             pass
 
-    def _tab_label(self, tab):
-        """Build the tab's text: [update marker] alias [countdown]."""
-        name = self.get_tab_display_name(str(tab.repo_path))
-        secs = getattr(tab, "_countdown_secs", 0)
-        if tab.polling and secs and secs > 0:
-            name = f"{name}  {secs}"
-        if getattr(tab, "has_update", False):
-            name = "● " + name
-        return name
+    def update_tab_color(self, tab):
+        """Re-derive the tab's status + update marker on the strip."""
+        name = tab.tab_name
+        if name not in self.tabs:
+            return
+        bg_state = self.get_tab_bg_state(tab)
+
+        prev_bg = getattr(tab, "_last_bg_state", None)
+        if bg_state != prev_bg:
+            tab._last_bg_state = bg_state
+            if prev_bg is not None:  # skip the first paint at startup
+                self._log_color_transition(tab, prev_bg, bg_state)
+
+        try:
+            self.tab_bar.update_tab(
+                name, status=bg_state, has_update=getattr(tab, "has_update", False))
+        except Exception:
+            pass
+        self.update_title()
 
     def _refresh_tab_label(self, tab):
-        """Update just the tab's text (alias / countdown / marker)."""
-        content = self.tab_frames.get(tab.tab_name)
-        if content is None:
-            return
+        """Push the current display name into the tab strip."""
         try:
-            self.notebook.tab(content, text=self._tab_label(tab))
+            self.tab_bar.update_tab(
+                tab.tab_name, label=self.get_tab_display_name(str(tab.repo_path)))
         except Exception:
             pass
 
     def set_tab_countdown(self, tab_name, seconds):
-        """Called (main thread) from the polling countdown to refresh the
-        seconds shown in the tab label."""
-        tab = self.tabs.get(tab_name)
-        if tab is None:
-            return
-        tab._countdown_secs = seconds or 0
-        self._refresh_tab_label(tab)
-
-    def update_tab_color(self, tab):
-        """Re-derive the tab's status dot + label from polling/health.
-
-        Skips the dot image write when the state hasn't changed (cheap
-        enough for the 1.5s reconciler); the label is always refreshed
-        (setting the same text is a no-op)."""
-        content = self.tab_frames.get(tab.tab_name)
-        if content is None:
-            return
-
-        bg_state = self.get_tab_bg_state(tab)
-
-        # Log red<->recovery transitions once, keyed on bg_state alone.
-        prev_bg = getattr(tab, "_last_bg_state", None)
-        if bg_state != prev_bg:
-            tab._last_bg_state = bg_state
-            if prev_bg is not None:  # skip the very first paint at startup
-                self._log_color_transition(tab, prev_bg, bg_state)
-            dot = self._status_dot_for(bg_state)
-            try:
-                self.notebook.tab(content, image=dot, compound="left")
-            except Exception:
-                pass
-
-        self._refresh_tab_label(tab)
-        self.update_title()
+        """Feed the polling countdown into the tab label (main thread)."""
+        try:
+            self.tab_bar.update_tab(tab_name, countdown=seconds or 0)
+        except Exception:
+            pass
 
     def _reconcile_tab_colors(self):
-        """Periodic safety net: re-derive every tab's status from the
-        live polling/health/error state, so the dot can never disagree
-        with reality even if a code path forgot to call update_tab_color.
-        """
+        """Periodic safety net so the tab status can never disagree with
+        the live polling/health state."""
         try:
             for tab in self.tabs.values():
                 self.update_tab_color(tab)
@@ -228,19 +147,13 @@ class AppTabsMixin:
         self.after(1500, self._reconcile_tab_colors)
 
     # ------------------------------------------------------------------
-    # Periodic automation loops (unchanged behavior)
+    # Periodic automation loops
     # ------------------------------------------------------------------
 
     def _tab_in_error(self, tab):
-        """True if the tab is in a recoverable error state — git
-        unhealthy (connection/remote problem) or a mid-sync failure.
-        The STOP-merge state (pending_branches) is deliberately
-        excluded: it needs a human decision, not a reconnect."""
         return (not tab.git_healthy) or getattr(tab, "sync_error", False)
 
     def _retry_errored_repos(self):
-        """Periodic recovery loop. When enabled, spawns a worker per
-        errored repo to re-check health and re-sync."""
         settings = self.global_settings
         if settings.get("auto_retry_errored", False) and not getattr(self, "_polling_circuit_open", False):
             for tab in self.tabs.values():
@@ -250,9 +163,6 @@ class AppTabsMixin:
         self.after(interval * 1000, self._retry_errored_repos)
 
     def _watch_idle_repos(self):
-        """Periodic idle-watch loop. When enabled (interval > 0), spawns
-        a worker per idle healthy repo to detect pending work and
-        auto-start polling."""
         settings = self.global_settings
         try:
             interval = int(settings.get("watch_idle_interval_seconds", 0) or 0)
@@ -272,8 +182,6 @@ class AppTabsMixin:
         self.after(delay, self._watch_idle_repos)
 
     def _disable_inactive_repos(self):
-        """Stop polling on repos inactive for `inactivity_disable_hours`
-        hours (0 = off). Clean stop; the idle-watch can restart them."""
         import time
         settings = self.global_settings
         try:
@@ -296,26 +204,22 @@ class AppTabsMixin:
         self.after(60000, self._disable_inactive_repos)
 
     def mark_tab_updated(self, tab):
-        """Mark tab as having an update."""
         if not tab.has_update:
             tab.has_update = True
             self.update_tab_color(tab)
 
     def clear_tab_marker(self, tab):
-        """Clear update marker from tab."""
         if tab.has_update:
             tab.has_update = False
             self.update_tab_color(tab)
 
     # ------------------------------------------------------------------
-    # Add / switch / close / hide tabs
+    # Add / switch / close / hide
     # ------------------------------------------------------------------
 
     def add_repo(self, repo_path, switch_to=True):
         """Add a repository tab."""
         repo_name = Path(repo_path).name
-
-        # Handle duplicate names
         tab_name = repo_name
         counter = 1
         while tab_name in self.tabs:
@@ -324,81 +228,75 @@ class AppTabsMixin:
 
         display_name = self.get_tab_display_name(repo_path)
 
-        # Content is a page of the notebook.
-        tab_content = RepoTabContent(self.notebook, repo_path, self, tab_name)
+        tab_content = RepoTabContent(self.content_container, repo_path, self, tab_name)
         self.tab_frames[tab_name] = tab_content
         self.tabs[tab_name] = tab_content
         self.tab_paths[tab_name] = repo_path
 
-        self.notebook.add(
-            tab_content, text=display_name,
-            image=self._status_dot_for("default"), compound="left",
-        )
+        self.tab_bar.add_tab(tab_name, display_name, status="default")
 
         if switch_to:
             self.switch_tab(tab_name)
         self.after(100, self.update_title)
 
-        # Auto-start polling if enabled AND restore_polling disabled
         if self.global_settings.get("auto_start_polling", False) and not self.global_settings.get("restore_polling", False):
             self.after(500, tab_content.toggle_polling)
 
-    def _name_from_widget(self, widget_id):
-        """Map a notebook tab id (widget path) back to a tab name."""
-        wid = str(widget_id)
-        for name, content in self.tab_frames.items():
-            if str(content) == wid:
-                return name
-        return None
+    def on_tab_click(self, tab_name):
+        """Single click: switch. In advanced mode, clicking the already-
+        active tab toggles polling (with a short delay so a double-click
+        can cancel it and sync instead)."""
+        if self.global_settings.get("advanced_mode", False):
+            if getattr(self, "_click_timer", None):
+                try:
+                    self.after_cancel(self._click_timer)
+                except Exception:
+                    pass
+                self._click_timer = None
 
-    def _on_notebook_tab_changed(self, event=None):
-        """Native tab selection changed → track current tab, clear the
-        update marker, refresh the Repository menu."""
-        try:
-            current = self.notebook.select()
-        except Exception:
-            return
-        if not current:
-            self.current_tab = None
-            return
-        name = self._name_from_widget(current)
-        if not name:
-            return
-        self.current_tab = name
-        tab = self.tabs.get(name)
-        if tab is not None and getattr(tab, "has_update", False):
-            tab.has_update = False
-            self.update_tab_color(tab)
-        try:
-            self.update_repo_menu()
-        except Exception:
-            pass
+            def do_single():
+                self._click_timer = None
+                if self.current_tab == tab_name:
+                    tab = self.tabs.get(tab_name)
+                    if tab and tab.git_healthy:
+                        tab.toggle_polling()
+                else:
+                    self.switch_tab(tab_name)
 
-    def switch_tab(self, tab_name):
-        """Select the given tab (fires <<NotebookTabChanged>>)."""
-        content = self.tab_frames.get(tab_name)
-        if content is None:
-            return
-        try:
-            self.notebook.select(content)
-        except Exception:
-            pass
+            self._click_timer = self.after(300, do_single)
+        else:
+            self.switch_tab(tab_name)
 
     def on_tab_double_click(self, tab_name):
         """Advanced mode: double-click a tab → sync now."""
         if self.global_settings.get("advanced_mode", False):
+            if getattr(self, "_click_timer", None):
+                try:
+                    self.after_cancel(self._click_timer)
+                except Exception:
+                    pass
+                self._click_timer = None
             tab = self.tabs.get(tab_name)
             if tab and tab.git_healthy:
                 tab.manual_sync()
 
-    def _forget_tab(self, tab_name):
-        """Remove a tab from the notebook and destroy its content."""
-        content = self.tab_frames.get(tab_name)
-        if content is not None:
-            try:
-                self.notebook.forget(content)
-            except Exception:
-                pass
+    def switch_tab(self, tab_name):
+        """Switch to specified tab."""
+        if tab_name not in self.tabs:
+            return
+        if self.current_tab and self.current_tab in self.tab_frames:
+            self.tab_frames[self.current_tab].pack_forget()
+
+        self.tab_frames[tab_name].pack(fill="both", expand=True)
+        self.current_tab = tab_name
+        self.tab_bar.set_active(tab_name)
+
+        tab = self.tabs[tab_name]
+        if tab.has_update:
+            tab.has_update = False
+            self.update_tab_color(tab)
+
+        self.update_repo_menu()
 
     def close_tab(self, tab_name):
         """Close a repository tab."""
@@ -411,7 +309,7 @@ class AppTabsMixin:
         tab.stop_countdown()
         tab.wait_for_polling_thread(timeout=5)
 
-        self._forget_tab(tab_name)
+        self.tab_bar.remove_tab(tab_name)
         self.tab_frames.pop(tab_name, None)
         try:
             tab.destroy()
@@ -429,124 +327,9 @@ class AppTabsMixin:
         self.update_title()
 
     def close_current_tab(self):
-        """Close current repository tab."""
         if not self.tabs or not self.current_tab:
             return
         self.close_tab(self.current_tab)
-
-    # ------------------------------------------------------------------
-    # Notebook mouse handling: click identify, DnD, middle/right menu
-    # ------------------------------------------------------------------
-
-    def _notebook_tab_name_at(self, event):
-        """Return the tab name under the pointer, or None if not on a tab."""
-        try:
-            idx = self.notebook.index(f"@{event.x},{event.y}")
-        except Exception:
-            return None
-        try:
-            tid = self.notebook.tabs()[idx]
-        except Exception:
-            return None
-        return self._name_from_widget(tid)
-
-    def _on_nb_double(self, event):
-        # Cancel a pending advanced single-click toggle so a double-click
-        # only syncs (doesn't also toggle polling).
-        if getattr(self, "_toggle_timer", None):
-            try:
-                self.after_cancel(self._toggle_timer)
-            except Exception:
-                pass
-            self._toggle_timer = None
-        name = self._notebook_tab_name_at(event)
-        if name:
-            self.on_tab_double_click(name)
-
-    def _advanced_toggle(self, tab_name):
-        self._toggle_timer = None
-        tab = self.tabs.get(tab_name)
-        if tab and tab.git_healthy:
-            tab.toggle_polling()
-
-    def _on_nb_middle(self, event):
-        name = self._notebook_tab_name_at(event)
-        if name:
-            self.hide_repo(name)
-
-    def _on_nb_right(self, event):
-        name = self._notebook_tab_name_at(event)
-        if name:
-            self.on_tab_right_click(event, name)
-
-    def _on_nb_press(self, event):
-        """Start of a potential drag-reorder / advanced click-toggle."""
-        try:
-            self._drag_index = self.notebook.index(f"@{event.x},{event.y}")
-        except Exception:
-            self._drag_index = None
-        self._drag_moved = False
-        # Remember whether this press landed on the ALREADY-active tab
-        # (advanced mode: re-clicking the active tab toggles polling).
-        self._press_tab_name = self._notebook_tab_name_at(event)
-        self._press_was_current = (
-            self._press_tab_name is not None
-            and self._press_tab_name == self.current_tab
-        )
-
-    def _on_nb_motion(self, event):
-        """Live-reorder: move the dragged tab to the slot under the pointer."""
-        if getattr(self, "_drag_index", None) is None:
-            return
-        try:
-            idx = self.notebook.index(f"@{event.x},{event.y}")
-        except Exception:
-            return
-        if idx != self._drag_index:
-            try:
-                widget = self.notebook.tabs()[self._drag_index]
-                self.notebook.insert(idx, widget)
-                self._drag_index = idx
-                self._drag_moved = True
-            except Exception:
-                pass
-
-    def _on_nb_release(self, event):
-        """Persist a drag, or (advanced mode) toggle polling when the
-        already-active tab was clicked without dragging."""
-        if getattr(self, "_drag_moved", False):
-            self._sync_order_from_notebook()
-            self.save_current_repos()
-        elif (self.global_settings.get("advanced_mode", False)
-              and getattr(self, "_press_was_current", False)):
-            name = self._notebook_tab_name_at(event)
-            if name and name == getattr(self, "_press_tab_name", None):
-                # Delay slightly so a double-click can cancel it (=sync).
-                if getattr(self, "_toggle_timer", None):
-                    try:
-                        self.after_cancel(self._toggle_timer)
-                    except Exception:
-                        pass
-                self._toggle_timer = self.after(
-                    300, lambda n=name: self._advanced_toggle(n))
-        self._drag_index = None
-        self._drag_moved = False
-        self._press_was_current = False
-
-    def _sync_order_from_notebook(self):
-        """Rebuild the tab dicts in the notebook's current tab order so
-        persistence (repos.json) reflects the visible order."""
-        order = []
-        for tid in self.notebook.tabs():
-            name = self._name_from_widget(tid)
-            if name:
-                order.append(name)
-
-        def reorder(d):
-            return {n: d[n] for n in order if n in d}
-        self.tabs = reorder(self.tabs)
-        self.tab_paths = reorder(self.tab_paths)
-        self.tab_frames = reorder(self.tab_frames)
 
     def on_tab_right_click(self, event, tab_name):
         """Right-click context menu for a tab."""
@@ -600,7 +383,7 @@ class AppTabsMixin:
             self.global_settings["hidden_repos"] = hidden
             save_global_settings(self.global_settings)
 
-        self._forget_tab(tab_name)
+        self.tab_bar.remove_tab(tab_name)
         self.tab_frames.pop(tab_name, None)
         try:
             tab.destroy()
@@ -632,11 +415,9 @@ class AppTabsMixin:
     # ------------------------------------------------------------------
 
     def set_tab_alias(self, tab_name, alias):
-        """Set or clear tab alias."""
         repo_path = self.tab_paths.get(tab_name)
         if not repo_path:
             return
-
         aliases = self.global_settings.get("tab_aliases", {})
         if alias:
             aliases[repo_path] = alias
@@ -652,7 +433,6 @@ class AppTabsMixin:
                 tab.refresh_tab_name_label()
 
     def get_tab_display_name(self, repo_path):
-        """Get display name for a repo (alias or folder name)."""
         aliases = self.global_settings.get("tab_aliases", {})
         return aliases.get(repo_path, Path(repo_path).name)
 

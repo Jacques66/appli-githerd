@@ -182,11 +182,11 @@ class AppPersistenceMixin:
             # Rebuild menus
             self._build_menus()
 
-            # Bottom status bar first (side="bottom") so the notebook
-            # below fills the rest — and so it survives the rebuild.
+            # Bottom status bar first (side="bottom") so the tab strip +
+            # pane below fill the rest — and so it survives the rebuild.
             self._build_status_bar()
 
-            # Real OS-style tabs (ttk.Notebook)
+            # Trapezoidal tab strip + content pane
             self._build_tabs_container()
 
             # Reload repos — cheap filesystem check only (see

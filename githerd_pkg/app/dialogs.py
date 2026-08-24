@@ -86,6 +86,8 @@ class AppDialogsMixin:
         def on_appearance_change(mode):
             ctk.set_appearance_mode(mode)
             self.update_menu_colors(mode)
+            if hasattr(self, "tab_bar"):
+                self.tab_bar.restyle()
 
         appearance_menu = ctk.CTkOptionMenu(
             appf, variable=appearance_var, values=APPEARANCE_MODES,
