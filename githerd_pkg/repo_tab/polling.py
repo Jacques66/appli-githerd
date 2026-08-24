@@ -361,10 +361,9 @@ class RepoTabPollingMixin:
         self.countdown_job = self.after(1000, self.update_countdown)
 
     def _set_button_countdown(self, seconds):
-        """Push countdown to the corresponding TabButton if it exists."""
-        btn = self.app.tab_buttons.get(self.tab_name)
-        if btn and hasattr(btn, "set_countdown"):
-            btn.set_countdown(seconds)
+        """Push the countdown seconds into the tab label (main thread)."""
+        if hasattr(self.app, "set_tab_countdown"):
+            self.app.set_tab_countdown(self.tab_name, seconds)
 
     def _mark_if_not_active(self):
         """Mark tab as updated if not active."""

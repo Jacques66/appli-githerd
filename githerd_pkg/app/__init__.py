@@ -58,15 +58,9 @@ class App(
         self._build_status_bar()
         _trace("_build_status_bar done")
 
-        # Create tab bar
-        self.tab_bar = ctk.CTkFrame(self, height=40)
-        self.tab_bar.pack(fill="x", padx=10, pady=(10, 0))
-        _trace("tab_bar packed")
-
-        # Container for tab content
-        self.content_container = ctk.CTkFrame(self)
-        self.content_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
-        _trace("content_container packed")
+        # Real OS-style tabs (ttk.Notebook)
+        self._build_tabs_container()
+        _trace("tab notebook built")
 
         # Load saved repos
         _trace("load_saved_repos starting …")

@@ -168,7 +168,6 @@ class AppPersistenceMixin:
             # Reset structures
             self.tabs = {}
             self.tab_paths = {}
-            self.tab_buttons = {}
             self.tab_frames = {}
             self.current_tab = None
 
@@ -183,13 +182,12 @@ class AppPersistenceMixin:
             # Rebuild menus
             self._build_menus()
 
-            # Recreate tab bar
-            self.tab_bar = ctk.CTkFrame(self, height=40)
-            self.tab_bar.pack(fill="x", padx=10, pady=(10, 0))
+            # Bottom status bar first (side="bottom") so the notebook
+            # below fills the rest — and so it survives the rebuild.
+            self._build_status_bar()
 
-            # Container for content
-            self.content_container = ctk.CTkFrame(self)
-            self.content_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+            # Real OS-style tabs (ttk.Notebook)
+            self._build_tabs_container()
 
             # Reload repos — cheap filesystem check only (see
             # load_saved_repos: no main-thread git subprocess).
