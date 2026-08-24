@@ -451,9 +451,23 @@ class AppTabsMixin:
         return self._name_from_widget(tid)
 
     def _on_nb_double(self, event):
+        # Cancel a pending advanced single-click toggle so a double-click
+        # only syncs (doesn't also toggle polling).
+        if getattr(self, "_toggle_timer", None):
+            try:
+                self.after_cancel(self._toggle_timer)
+            except Exception:
+                pass
+            self._toggle_timer = None
         name = self._notebook_tab_name_at(event)
         if name:
             self.on_tab_double_click(name)
+
+    def _advanced_toggle(self, tab_name):
+        self._toggle_timer = None
+        tab = self.tabs.get(tab_name)
+        if tab and tab.git_healthy:
+            tab.toggle_polling()
 
     def _on_nb_middle(self, event):
         name = self._notebook_tab_name_at(event)
@@ -466,12 +480,19 @@ class AppTabsMixin:
             self.on_tab_right_click(event, name)
 
     def _on_nb_press(self, event):
-        """Start of a potential drag-reorder."""
+        """Start of a potential drag-reorder / advanced click-toggle."""
         try:
             self._drag_index = self.notebook.index(f"@{event.x},{event.y}")
         except Exception:
             self._drag_index = None
         self._drag_moved = False
+        # Remember whether this press landed on the ALREADY-active tab
+        # (advanced mode: re-clicking the active tab toggles polling).
+        self._press_tab_name = self._notebook_tab_name_at(event)
+        self._press_was_current = (
+            self._press_tab_name is not None
+            and self._press_tab_name == self.current_tab
+        )
 
     def _on_nb_motion(self, event):
         """Live-reorder: move the dragged tab to the slot under the pointer."""
@@ -491,12 +512,26 @@ class AppTabsMixin:
                 pass
 
     def _on_nb_release(self, event):
-        """Persist the new order if a drag actually happened."""
+        """Persist a drag, or (advanced mode) toggle polling when the
+        already-active tab was clicked without dragging."""
         if getattr(self, "_drag_moved", False):
             self._sync_order_from_notebook()
             self.save_current_repos()
+        elif (self.global_settings.get("advanced_mode", False)
+              and getattr(self, "_press_was_current", False)):
+            name = self._notebook_tab_name_at(event)
+            if name and name == getattr(self, "_press_tab_name", None):
+                # Delay slightly so a double-click can cancel it (=sync).
+                if getattr(self, "_toggle_timer", None):
+                    try:
+                        self.after_cancel(self._toggle_timer)
+                    except Exception:
+                        pass
+                self._toggle_timer = self.after(
+                    300, lambda n=name: self._advanced_toggle(n))
         self._drag_index = None
         self._drag_moved = False
+        self._press_was_current = False
 
     def _sync_order_from_notebook(self):
         """Rebuild the tab dicts in the notebook's current tab order so
