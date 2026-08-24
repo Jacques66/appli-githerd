@@ -31,7 +31,7 @@ class TabBar(tk.Canvas):
     INNER_PAD = 8       # horizontal padding inside a tab (top edge)
     DOT_R = 4           # status dot radius
     GAP = 6             # gap between dot and label
-    GLASS_W = 5         # drain gauge width
+    GLASS_W = 8         # drain gauge width (+50%)
     GLASS_H = 12        # drain gauge height
     GLASS_GAP = 8       # gap between label and gauge (space always reserved)
 
