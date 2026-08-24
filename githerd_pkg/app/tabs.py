@@ -68,11 +68,14 @@ class AppTabsMixin:
             style.theme_use("default")  # most restylable base theme
         except Exception:
             pass
+        # ~2x the previous tab size; scales with the user's font zoom.
+        zoom = self.global_settings.get("font_zoom", 1.0)
+        tab_font = ("TkDefaultFont", max(10, int(18 * zoom)))
         style.configure("GitHerd.TNotebook", background=bg, borderwidth=0)
         style.configure(
             "GitHerd.TNotebook.Tab",
             background=tab_bg, foreground=tab_fg,
-            padding=[12, 5], borderwidth=0,
+            padding=[16, 9], borderwidth=0, font=tab_font,
         )
         style.map(
             "GitHerd.TNotebook.Tab",
@@ -86,9 +89,9 @@ class AppTabsMixin:
         if getattr(self, "_status_dots", None):
             return
         self._status_dots = {
-            "green": self._make_status_dot("#4ade80"),
-            "red": self._make_status_dot("#ff5555"),
-            "default": self._make_status_dot("#888888"),
+            "green": self._make_status_dot("#4ade80", size=16),
+            "red": self._make_status_dot("#ff5555", size=16),
+            "default": self._make_status_dot("#888888", size=16),
         }
 
     def _make_status_dot(self, color, size=12):
