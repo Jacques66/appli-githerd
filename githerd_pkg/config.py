@@ -27,6 +27,7 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
 DEFAULT_GLOBAL_SETTINGS = {
     "git_binary": "git",
+    "git_timeout_seconds": 30,  # Timeout (seconds) for each git command before it is aborted
     "font_zoom": 1.0,
     "auto_start_polling": False,
     "start_collapsed": False,

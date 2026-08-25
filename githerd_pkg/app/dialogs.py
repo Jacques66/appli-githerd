@@ -12,7 +12,7 @@ from ..config import (
     load_global_settings, save_global_settings,
     APPEARANCE_MODES, COLOR_THEMES
 )
-from ..git_utils import get_tracked_branches, delete_remote_branch
+from ..git_utils import get_tracked_branches, delete_remote_branch, set_git_timeout
 from ..resources import HELP_TEXT
 
 
@@ -154,6 +154,17 @@ class AppDialogsMixin:
 
         ctk.CTkButton(gitf, text="📂", width=40, command=browse_git).grid(
             row=1, column=2, pady=8)
+
+        ctk.CTkLabel(gitf, text="Command timeout (s):").grid(
+            row=2, column=0, sticky="w", pady=8)
+        timeout_entry = ctk.CTkEntry(gitf, width=80)
+        timeout_entry.insert(0, str(self.global_settings.get("git_timeout_seconds", 30)))
+        timeout_entry.grid(row=2, column=1, sticky="w", pady=8, padx=(10, 5))
+        ctk.CTkLabel(
+            gitf, text="Abort a git command after this many seconds (default 30).",
+            text_color="gray", font=ctk.CTkFont(size=11)).grid(
+            row=3, column=0, columnspan=3, sticky="w", padx=(0, 5))
+
         gitf.columnconfigure(1, weight=1)
 
         # ============================= GENERAL =============================
@@ -255,6 +266,12 @@ class AppDialogsMixin:
 
             self.global_settings["appearance_mode"] = appearance_var.get()
             self.global_settings["git_binary"] = git_entry.get().strip()
+            try:
+                new_git_timeout = max(1, int(timeout_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_git_timeout = 30
+            self.global_settings["git_timeout_seconds"] = new_git_timeout
+            set_git_timeout(new_git_timeout)
             self.global_settings["auto_start_polling"] = auto_poll_var.get()
             self.global_settings["start_collapsed"] = collapsed_var.get()
             self.global_settings["advanced_mode"] = new_advanced

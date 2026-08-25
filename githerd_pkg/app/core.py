@@ -23,6 +23,10 @@ class AppCoreMixin:
         self.tabs = {}  # tab_name -> RepoTabContent
         self.tab_paths = {}  # tab_name -> repo_path
         self.global_settings = load_global_settings()
+        # Apply the configurable git command timeout as early as possible so
+        # every subsequent git call (including the initial scan) honors it.
+        from .. import git_utils as _git_utils
+        _git_utils.set_git_timeout(self.global_settings.get("git_timeout_seconds", 30))
         self.tab_frames = {}  # tab_name -> RepoTabContent (content pane)
         self.current_tab = None
         # Thread-safe UI dispatcher: worker threads push callables here,

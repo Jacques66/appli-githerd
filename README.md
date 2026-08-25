@@ -195,6 +195,7 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Color theme | Color theme (blue, dark-blue, green) |
 | Font zoom | UI font scale factor (default: `1.0`) |
 | Git binary | Path to git executable (default: `git`) |
+| Git command timeout (sec) | Abort a git command (fetch/push/…) after this many seconds (default `30`). Raise it on slow networks or slow paths (e.g. `/mnt/c` under WSL) to reduce spurious `Timeout after 30s` errors. |
 | Auto-start polling | Start polling automatically when adding a repo |
 | Start collapsed | Start with log panel hidden |
 | Advanced mode | Compact UI with tab interactions (see below) |

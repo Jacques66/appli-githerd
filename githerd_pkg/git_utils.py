@@ -45,13 +45,36 @@ def reset_git_timeouts():
         _consecutive_timeouts = 0
 
 
-def run_git(cmd, cwd=None, timeout=30):
+# Default git command timeout (seconds). Configurable at runtime via
+# set_git_timeout(); callers that don't pass an explicit timeout use this.
+_default_timeout = 30
+
+
+def set_git_timeout(seconds):
+    """Set the default timeout (seconds) applied to git commands."""
+    global _default_timeout
+    try:
+        seconds = int(seconds)
+    except (TypeError, ValueError):
+        return
+    if seconds > 0:
+        _default_timeout = seconds
+
+
+def get_git_timeout():
+    return _default_timeout
+
+
+def run_git(cmd, cwd=None, timeout=None):
     """Run a git command and return (returncode, stdout, stderr).
 
     On timeout, the partial stderr captured before the kill is included
     in the returned stderr string so the caller can show the actual
-    network/auth failure git was reporting.
+    network/auth failure git was reporting. When ``timeout`` is None the
+    configurable module default (set_git_timeout) is used.
     """
+    if timeout is None:
+        timeout = _default_timeout
     try:
         p = subprocess.run(
             cmd,
