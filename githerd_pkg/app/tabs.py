@@ -361,7 +361,7 @@ class AppTabsMixin:
         menu.add_separator()
         menu.add_command(label="Hide tab", command=lambda: self.hide_repo(tab_name))
         menu.add_command(label="Close", command=lambda: self.close_tab(tab_name))
-        menu.tk_popup(event.x_root, event.y_root)
+        self.popup_menu(menu, event.x_root, event.y_root)
 
     def hide_repo(self, tab_name):
         """Hide a repo (make it inactive) - stop polling but keep in settings."""

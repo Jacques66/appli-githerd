@@ -189,7 +189,10 @@ class RepoTabDialogsMixin:
             activeforeground=colors["active_fg"] if colors else None,
         )
         menu.add_command(label="Copy", command=self.copy_log)
-        menu.tk_popup(event.x_root, event.y_root)
+        if hasattr(self.app, "popup_menu"):
+            self.app.popup_menu(menu, event.x_root, event.y_root)
+        else:
+            menu.tk_popup(event.x_root, event.y_root)
 
     def copy_log(self):
         """Copy selected text, or all log content if no selection."""

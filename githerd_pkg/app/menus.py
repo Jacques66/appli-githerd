@@ -114,6 +114,40 @@ class AppMenusMixin:
 
         self.menu_colors = {"bg": menu_bg, "fg": menu_fg, "active_bg": menu_active_bg, "active_fg": menu_active_fg}
 
+    def popup_menu(self, menu, x_root, y_root):
+        """Post a context menu at (x_root, y_root), flipping it up/left when
+        it would overflow the screen edge.
+
+        Some window managers (notably WSLg) do not auto-reposition Tk popup
+        menus, so a menu opened near the bottom of the screen gets clipped.
+        We measure the menu and shift its origin so the whole menu stays on
+        screen.
+        """
+        try:
+            menu.update_idletasks()
+            h = menu.winfo_reqheight()
+            w = menu.winfo_reqwidth()
+            sh = menu.winfo_screenheight()
+            sw = menu.winfo_screenwidth()
+            # Fallback estimate if the menu hasn't computed a real size yet.
+            if h <= 1:
+                try:
+                    n = menu.index("end")
+                    n = (n + 1) if n is not None else 1
+                except Exception:
+                    n = 1
+                h = n * 24 + 4
+            if y_root + h > sh:
+                y_root = max(0, sh - h)
+            if w > 1 and x_root + w > sw:
+                x_root = max(0, sw - w)
+        except Exception:
+            pass
+        try:
+            menu.tk_popup(int(x_root), int(y_root))
+        finally:
+            menu.grab_release()
+
     def update_repo_menu(self):
         """Rebuild the Repository menu for current tab."""
         self.repo_menu.delete(0, "end")
@@ -177,8 +211,11 @@ class AppMenusMixin:
                 activebackground=self.menu_colors["active_bg"],
                 activeforeground=self.menu_colors["active_fg"]
             )
-            for repo_path in hidden_repos:
-                display_name = self.get_tab_display_name(repo_path)
+            entries = sorted(
+                ((self.get_tab_display_name(rp), rp) for rp in hidden_repos),
+                key=lambda e: e[0].lower()
+            )
+            for display_name, repo_path in entries:
                 inactive_menu.add_command(
                     label=display_name,
                     command=lambda rp=repo_path: self.show_repo(rp)
