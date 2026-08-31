@@ -88,12 +88,9 @@ class RepoTabDialogsMixin:
         prefix_entry.insert(0, self.prefix)
         prefix_entry.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
 
-        # Interval
-        ctk.CTkLabel(main_frame, text="Interval (sec):").grid(
-            row=6, column=0, sticky="w", padx=15, pady=8)
-        interval_entry = ctk.CTkEntry(main_frame, width=100)
-        interval_entry.insert(0, str(self.interval))
-        interval_entry.grid(row=6, column=1, sticky="w", padx=(10, 15), pady=8)
+        # The polling cadence is a GLOBAL setting now (Settings → Polling &
+        # hibernation → Active polling interval), not per-repo, so there is no
+        # interval field here anymore.
 
         main_frame.columnconfigure(1, weight=1)
 
@@ -116,16 +113,11 @@ class RepoTabDialogsMixin:
             self.remote = remote_entry.get().strip()
             self.main = main_entry.get().strip()
             self.prefix = prefix_entry.get().strip()
-            try:
-                self.interval = int(interval_entry.get().strip())
-            except ValueError:
-                self.interval = 60
 
             self.repo_config = {
                 "remote": self.remote,
                 "main_branch": self.main,
                 "branch_prefix": self.prefix,
-                "interval_seconds": self.interval
             }
 
             try:

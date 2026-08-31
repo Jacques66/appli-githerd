@@ -70,6 +70,8 @@ class AppTabsMixin:
         if tab.pending_branches and not tab.polling:
             return "red"
         if tab.polling:
+            if getattr(tab, "hibernating", False):
+                return "hib"
             return "green"
         return "default"
 
@@ -96,7 +98,7 @@ class AppTabsMixin:
             if new_bg == "red":
                 tab.log_msg(f"⬤ RED — {self._red_reason(tab)}", color="#ff9500")
             elif prev_bg == "red":
-                state = "polling" if new_bg == "green" else "idle"
+                state = "polling" if new_bg in ("green", "hib") else "idle"
                 tab.log_msg(f"⬤ GREEN — error cleared ({state})", color="#4ade80")
         except Exception:
             pass
@@ -213,6 +215,30 @@ class AppTabsMixin:
         if tab.has_update:
             tab.has_update = False
             self.update_tab_color(tab)
+
+    def set_tab_hibernation(self, tab_name, hibernate):
+        """Manually force a polling repo into hibernation (slow) or wake it
+        back to active (fast). No-op if the repo is not polling.
+
+        Forcing hibernation sets hibernate_forced=True so it sticks (the
+        automatic inactivity rule cannot pull it back on its own). Waking
+        returns it to automatic mode with a fresh inactivity clock, so it
+        starts active and only re-hibernates after the configured delay.
+        """
+        import time
+        tab = self.tabs.get(tab_name)
+        if not tab or not tab.polling:
+            return
+        if hibernate:
+            tab.hibernate_forced = True
+            tab.hibernating = True
+            tab.log_msg("→ Hibernation (manual)")
+        else:
+            tab.hibernate_forced = None
+            tab.hibernating = False
+            tab.last_activity_time = time.time()
+            tab.log_msg("→ Active (manual wake)")
+        self.update_tab_color(tab)
 
     # ------------------------------------------------------------------
     # Add / switch / close / hide
@@ -354,6 +380,17 @@ class AppTabsMixin:
             command=lambda: tab.toggle_polling() if tab else None,
             state="normal" if tab and tab.git_healthy else "disabled",
         )
+        if tab and tab.polling:
+            if getattr(tab, "hibernating", False):
+                menu.add_command(
+                    label="Wake up (active)",
+                    command=lambda: self.set_tab_hibernation(tab_name, False),
+                )
+            else:
+                menu.add_command(
+                    label="Hibernate now",
+                    command=lambda: self.set_tab_hibernation(tab_name, True),
+                )
         menu.add_command(
             label="Options...",
             command=lambda: tab.show_config_dialog() if tab else None,
@@ -487,7 +524,7 @@ class AppTabsMixin:
         self.tab_paths[tab_name] = new_path
 
         s = self.global_settings
-        for key in ("branch_update_enabled", "tab_aliases", "polling_states"):
+        for key in ("branch_update_enabled", "tab_aliases", "polling_states", "hibernation_states"):
             d = s.get(key)
             if isinstance(d, dict) and old_path in d:
                 d[new_path] = d.pop(old_path)

@@ -78,11 +78,17 @@ class AppPersistenceMixin:
             if not self.global_settings.get("restore_polling", False):
                 return
             polling_states = self.global_settings.get("polling_states", {})
+            hibernation_states = self.global_settings.get("hibernation_states", {})
             for tab_name, tab in self.tabs.items():
                 repo_path = self.tab_paths.get(tab_name, "")
                 if repo_path and polling_states.get(repo_path, False):
                     if tab.git_healthy and not tab.polling:
-                        tab.toggle_polling()
+                        # A repo that was hibernating resumes in hibernation
+                        # but re-checks immediately: the first sync cycle wakes
+                        # it to active if a change is detected, else it stays
+                        # hibernating.
+                        tab.toggle_polling(
+                            resume_hibernating=bool(hibernation_states.get(repo_path, False)))
 
         self.after(100, restore_tab)
         self.after(200, restore_polling)
@@ -123,13 +129,16 @@ class AppPersistenceMixin:
             self.global_settings["start_collapsed"] = not current_tab_obj.log_visible
             self.global_settings["last_active_tab"] = self.current_tab
 
-        # Always save polling state for each repo
+        # Always save polling + hibernation state for each repo
         polling_states = {}
+        hibernation_states = {}
         for tab_name, tab in self.tabs.items():
             repo_path = self.tab_paths.get(tab_name, "")
             if repo_path:
                 polling_states[repo_path] = tab.polling
+                hibernation_states[repo_path] = getattr(tab, "hibernating", False)
         self.global_settings["polling_states"] = polling_states
+        self.global_settings["hibernation_states"] = hibernation_states
 
         save_global_settings(self.global_settings)
 

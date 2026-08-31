@@ -112,12 +112,31 @@ The tab alias is set from **Options… → Alias**:
 - Aliases appear in both the tab button, the in-tab status area (bottom-right), and the Inactive repos submenu
 
 **Tab indicators (background colors):**
-- Green background = Polling active and healthy
-- Gray background = Polling inactive (idle)
+- Green background = Polling **active** (fast interval) and healthy
+- Cyan background (`#00B7EB`) = Polling in **hibernation** (still polling, but on the slow interval)
+- Gray background = Polling inactive (idle / stopped)
 - Red background = Git unhealthy, sync error (pull/push refused, merge failed…), or STOP state requiring action
 - `● Name` = Update detected (click tab to clear)
 
-The link between `polling` state and the green/red colour is enforced both at every state transition AND by a 1.5 s periodic reconciler, so a mismatch between the actual polling activity and the tab colour cannot persist.
+The link between `polling` state and the colour is enforced both at every state transition AND by a 1.5 s periodic reconciler, so a mismatch between the actual polling activity and the tab colour cannot persist.
+
+### Active vs hibernation (adaptive polling)
+
+Polling has two cadences, both controlled **globally** (there is no per-repo interval):
+
+- **Active** (green) — polls at the *Active polling interval*.
+- **Hibernation** (cyan) — after *Hibernate after inactivity* minutes without a meaningful
+  sync, an active repo drops to the slower *Hibernation polling interval*. It keeps
+  polling; as soon as a hibernation cycle detects a change, it returns to active
+  automatically.
+
+You can also switch a repo manually: **right-click a tab → “Hibernate now” / “Wake up
+(active)”** (also in the Repository menu). Manual hibernation sticks until you wake it.
+
+If **Restore polling state on restart** is on, each repo comes back as it was: an active
+repo resumes active; a hibernating repo resumes in hibernation but re-checks immediately —
+it wakes to active if a change is detected on the first cycle, otherwise it stays
+hibernating.
 
 ### Recent activity status bar
 
@@ -133,9 +152,12 @@ Events recorded: pull/push completed, branches synced, merges, STOP states, remo
 - The number of entries that fit on the bar itself is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20). The popup is always uncapped.
 - Entries are in memory only and reset on restart (up to a hard cap of 500 events per session).
 
-### Per-tab countdown badge
+### Per-tab countdown gauge
 
-When polling is active on a tab, a tiny white number (e.g. `42`) appears in the bottom-right corner of the tab button — the seconds remaining before the next sync. It clears as soon as polling is stopped.
+When a tab is polling, a small fixed-size “glass” gauge in the tab drains as the countdown
+to the next sync runs down (green while active, cyan while hibernating). Its size is
+constant regardless of the seconds remaining, so tabs never shift; it clears when polling
+stops.
 
 ### Keyboard shortcuts
 
@@ -188,7 +210,7 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 
 #### Global settings (Menu ? > Settings)
 
-The dialog is organized into sections (list on the left, content on the right): **Appearance**, **Git**, **General**, **Sync**, **Polling automation**.
+The dialog is organized into sections (list on the left, content on the right): **Appearance**, **Git**, **General**, **Sync**, **Polling & hibernation**.
 
 | Setting | Description |
 |---------|-------------|
@@ -204,11 +226,13 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Restore polling state on restart | Remember and restore polling state per repo |
 | Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
 | Recent activity entries kept | Number of entries shown in the bottom status bar (3 / 5 / 10 / 20, default `5`; the click popup is uncapped) |
-| Default polling interval (sec) for new repos | Initial `interval_seconds` written into `githerd.toml` when a new repo is added (default `60`) |
+| **Active polling interval (sec)** | **Global** fast polling cadence applied to every repo (default `60`). Replaces the old per-repo interval — there is no per-repo interval field anymore. |
+| **Hibernate after inactivity (min, 0=off)** | After this many minutes without a meaningful sync, an active repo drops to hibernation (slow polling, cyan tab). `0` disables hibernation. Default `15`. |
+| **Hibernation polling interval (sec)** | The slow cadence used while a repo is hibernating (default `300`; clamped to ≥ the active interval). |
 | Auto-retry repos in error (reconnect) | When on, repos stuck in an error state (git unhealthy or a mid-sync failure) are periodically re-checked; a repo that recovers has its error cleared and, if the error had interrupted polling, polling resumes automatically. STOP-merge states (human decision) are not retried. Default **off**. |
 | Auto-retry interval (sec) | How often errored repos are retried when the option above is on (default `60`, minimum `5`) |
 | Watch idle repos, start on change | Every N seconds, non-polling healthy repos are checked (read-only fetch); if a repo has pending work (local main ahead, or a tracked branch ahead of / behind main), polling is started automatically on it. `0` disables. Default `0`. |
-| Disable polling after inactivity (hours) | Shown in **red** because the unit is hours, not seconds. A repo that has polled without any meaningful sync activity for this many hours has its polling stopped automatically (clean stop; the idle-watch above can restart it later if a change appears). `0` disables. Default `24`. |
+| Disable polling after inactivity (hours) | Shown in **red** because the unit is hours, not seconds. A repo that has polled without any meaningful sync activity for this many hours has its polling **fully stopped** (a harder step than hibernation). `0` disables. Default `0` — idle repos now hibernate instead of stopping. |
 
 Stored in `~/.config/githerd/settings.json`
 

@@ -215,17 +215,32 @@ class AppDialogsMixin:
             row=srow, column=1, sticky="w", pady=6)
         srow += 1
 
-        ctk.CTkLabel(syncf, text="Default polling interval (sec) for new repos:").grid(
-            row=srow, column=0, sticky="w", pady=6)
-        default_interval_entry = ctk.CTkEntry(syncf, width=80)
-        default_interval_entry.insert(0, str(self.global_settings.get("default_interval_seconds", 60)))
-        default_interval_entry.grid(row=srow, column=1, sticky="w", pady=6)
-        srow += 1
-
-        # ============================ AUTOMATION ===========================
+        # ==================== POLLING & HIBERNATION ========================
         autof = sections["Automation"]
-        section_title(autof, "Polling automation")
+        section_title(autof, "Polling & hibernation")
         arow = 1
+
+        # The single, global active polling cadence (no more per-repo interval).
+        ctk.CTkLabel(autof, text="Active polling interval (sec):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        active_interval_entry = ctk.CTkEntry(autof, width=80)
+        active_interval_entry.insert(0, str(self.global_settings.get("active_interval_seconds", 60)))
+        active_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
+
+        ctk.CTkLabel(autof, text="Hibernate after inactivity (min, 0=off):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        hibernate_after_entry = ctk.CTkEntry(autof, width=80)
+        hibernate_after_entry.insert(0, str(self.global_settings.get("hibernate_after_minutes", 15)))
+        hibernate_after_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
+
+        ctk.CTkLabel(autof, text="Hibernation polling interval (sec):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        hibernate_interval_entry = ctk.CTkEntry(autof, width=80)
+        hibernate_interval_entry.insert(0, str(self.global_settings.get("hibernate_interval_seconds", 300)))
+        hibernate_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        arow += 1
 
         auto_retry_var = ctk.BooleanVar(value=self.global_settings.get("auto_retry_errored", False))
         ctk.CTkCheckBox(autof, text="Auto-retry repos in error (reconnect)",
@@ -249,7 +264,7 @@ class AppDialogsMixin:
         ctk.CTkLabel(autof, text="Disable polling after inactivity (hours, 0=off):",
                      text_color="#e05555").grid(row=arow, column=0, sticky="w", pady=6)
         inactivity_entry = ctk.CTkEntry(autof, width=80)
-        inactivity_entry.insert(0, str(self.global_settings.get("inactivity_disable_hours", 24)))
+        inactivity_entry.insert(0, str(self.global_settings.get("inactivity_disable_hours", 0)))
         inactivity_entry.grid(row=arow, column=1, sticky="w", pady=6)
         arow += 1
 
@@ -285,10 +300,22 @@ class AppDialogsMixin:
             self.global_settings["recent_sync_limit"] = new_recent_limit
             self._resize_recent_events(new_recent_limit)
             try:
-                new_default_interval = max(1, int(default_interval_entry.get().strip()))
+                new_active_interval = max(1, int(active_interval_entry.get().strip()))
             except (ValueError, AttributeError):
-                new_default_interval = 60
-            self.global_settings["default_interval_seconds"] = new_default_interval
+                new_active_interval = 60
+            self.global_settings["active_interval_seconds"] = new_active_interval
+            # keep the legacy key aligned so older builds stay consistent
+            self.global_settings["default_interval_seconds"] = new_active_interval
+            try:
+                new_hib_after = max(0, float(hibernate_after_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_hib_after = 15
+            self.global_settings["hibernate_after_minutes"] = new_hib_after
+            try:
+                new_hib_interval = max(new_active_interval, int(hibernate_interval_entry.get().strip()))
+            except (ValueError, AttributeError):
+                new_hib_interval = max(new_active_interval, 300)
+            self.global_settings["hibernate_interval_seconds"] = new_hib_interval
             self.global_settings["auto_retry_errored"] = auto_retry_var.get()
             try:
                 new_retry_interval = max(5, int(auto_retry_interval_entry.get().strip()))
@@ -303,7 +330,7 @@ class AppDialogsMixin:
             try:
                 new_inactivity = max(0, float(inactivity_entry.get().strip()))
             except (ValueError, AttributeError):
-                new_inactivity = 24
+                new_inactivity = 0
             self.global_settings["inactivity_disable_hours"] = new_inactivity
 
             try:
@@ -438,11 +465,12 @@ class AppDialogsMixin:
                 return
 
             detected = detect_repo_settings(path, git)
-            # Apply the user-configured default polling interval to
-            # newly added repos (only when no githerd.toml already
-            # exists — an existing config wins).
+            # The polling cadence is global now (active_interval_seconds); the
+            # legacy interval_seconds is still written into githerd.toml for
+            # backward compatibility but is no longer read.
             detected["interval_seconds"] = self.global_settings.get(
-                "default_interval_seconds", 60
+                "active_interval_seconds",
+                self.global_settings.get("default_interval_seconds", 60)
             )
             config_file = Path(path) / "githerd.toml"
             if not config_file.exists():

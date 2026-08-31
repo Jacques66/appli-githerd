@@ -39,7 +39,10 @@ class RepoTabContent(
         self.remote = self.repo_config["remote"]
         self.main = self.repo_config["main_branch"]
         self.prefix = self.repo_config["branch_prefix"]
-        self.interval = self.repo_config["interval_seconds"]
+        # Polling cadence is now GLOBAL (active_interval_seconds), not per-repo.
+        # self.interval mirrors the active interval; the effective interval each
+        # cycle is computed by _effective_interval() (fast vs hibernation).
+        self.interval = app.global_settings.get("active_interval_seconds", 60)
 
         # State
         self.lock = threading.Lock()
@@ -55,6 +58,13 @@ class RepoTabContent(
         self.polling_interrupted = False  # polling was killed by an error → auto-retry may resume it
         self.last_activity_time = time.time()  # last meaningful sync event (for inactivity auto-disable)
         self.next_poll_time = 0
+        # Hibernation: when polling but idle for a while, the repo keeps
+        # polling on the slow interval (cyan tab) instead of the fast one
+        # (green tab). `hibernating` is the live state; `hibernate_forced`
+        # overrides the automatic inactivity rule (None = auto, True = force
+        # hibernation, False = force active).
+        self.hibernating = False
+        self.hibernate_forced = None
         # Snapshot of remote branch heads from the last successful fetch,
         # {ref: sha}. Used to skip the (expensive) fetch when a cheap
         # `git ls-remote` shows the remote hasn't moved. None = unknown.

@@ -87,6 +87,9 @@ class TabBar(tk.Canvas):
                 dot_idle="#6e7681",
                 t_green="#dcffe8", t_green_dim="#8fbf9f",
                 t_red="#ffdede", t_red_dim="#c99",
+                # hibernation (slow polling): cyan #00B7EB on a dark cyan chip
+                cyan="#0c3540", cyan_active="#114b5f", dot_cyan="#00B7EB",
+                t_cyan="#cdf3ff", t_cyan_dim="#8fb9c4",
             )
         return dict(
             strip="#d0d0d0", panel="#dbdbdb",
@@ -98,6 +101,8 @@ class TabBar(tk.Canvas):
             dot_idle="#8a8a8a",
             t_green="#12481f", t_green_dim="#356b40",
             t_red="#5a1e1e", t_red_dim="#7a3a3a",
+            cyan="#c3e9f5", cyan_active="#dcf4fb", dot_cyan="#0090bd",
+            t_cyan="#0a3a49", t_cyan_dim="#356874",
         )
 
     def restyle(self, font_zoom=None):
@@ -173,6 +178,8 @@ class TabBar(tk.Canvas):
         p = self._pal
         if s == "green":
             return p["green_active"] if active else p["green"]
+        if s == "hib":
+            return p["cyan_active"] if active else p["cyan"]
         if s == "red":
             return p["red_active"] if active else p["red"]
         return p["idle_active"] if active else p["idle"]
@@ -182,6 +189,8 @@ class TabBar(tk.Canvas):
         p = self._pal
         if s == "green":
             return p["t_green"] if active else p["t_green_dim"]
+        if s == "hib":
+            return p["t_cyan"] if active else p["t_cyan_dim"]
         if s == "red":
             return p["t_red"] if active else p["t_red_dim"]
         return p["text"] if active else p["text_dim"]
@@ -261,6 +270,8 @@ class TabBar(tk.Canvas):
                 acc = p["accent"]
                 if t["status"] == "green":
                     acc = p["dot_green"]
+                elif t["status"] == "hib":
+                    acc = p["dot_cyan"]
                 elif t["status"] == "red":
                     acc = p["dot_red"]
                 self.create_rectangle(
@@ -271,6 +282,8 @@ class TabBar(tk.Canvas):
             dot = p["dot_idle"]
             if t["status"] == "green":
                 dot = p["dot_green"]
+            elif t["status"] == "hib":
+                dot = p["dot_cyan"]
             elif t["status"] == "red":
                 dot = p["dot_red"]
             dx = x0 + self.SLANT + self.INNER_PAD + self.DOT_R
@@ -285,8 +298,10 @@ class TabBar(tk.Canvas):
                 fill=self._text_for(t, is_active), tags=(tag,))
 
             # drain gauge (a little "glass" that empties as the countdown
-            # runs down) — only while polling; fixed size, right-aligned.
-            if t["status"] == "green":
+            # runs down) — while polling (active OR hibernating); fixed size,
+            # right-aligned. Green when active, cyan when hibernating.
+            if t["status"] in ("green", "hib"):
+                gauge = p["dot_cyan"] if t["status"] == "hib" else p["dot_green"]
                 gx1 = x0 + W - self.SLANT - self.INNER_PAD
                 gx0 = gx1 - self.GLASS_W
                 gtop = cy - self.GLASS_H / 2
@@ -294,13 +309,13 @@ class TabBar(tk.Canvas):
                 frac = max(0.0, min(1.0, t.get("progress", 0.0)))
                 # empty background + outline (the glass)
                 self.create_rectangle(gx0, gtop, gx1, gbot,
-                                      fill=p["strip"], outline=p["dot_green"],
+                                      fill=p["strip"], outline=gauge,
                                       width=1, tags=(tag,))
                 # liquid: fills from the bottom up to `frac`
                 if frac > 0:
                     fill_top = gbot - frac * self.GLASS_H
                     self.create_rectangle(gx0 + 1, fill_top, gx1 - 1, gbot - 1,
-                                          fill=p["dot_green"], outline="",
+                                          fill=gauge, outline="",
                                           tags=(tag,))
 
     # ---- hit testing / events ---------------------------------------

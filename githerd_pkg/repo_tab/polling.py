@@ -8,7 +8,7 @@ Handles polling loop, countdown, and initial scan.
 import time
 import threading
 
-from ..config import load_repo_config, load_global_settings
+from ..config import load_global_settings
 from ..git_utils import (
     run_git, get_tracked_branches, commits_ahead, commits_behind,
     local_main_ahead, are_files_disjoint, check_git_health, get_short_head,
@@ -143,6 +143,43 @@ class RepoTabPollingMixin:
             self.set_info(str(e))
             self.app.ui_call(lambda: self.app.update_tab_color(self))
 
+    def _effective_interval(self):
+        """Return the polling interval for the current cycle and update
+        self.hibernating accordingly.
+
+        Fast (active) interval normally; the slow (hibernation) interval when
+        the repo has been idle for at least hibernate_after_minutes — or when
+        hibernation is forced on/off manually (hibernate_forced True/False).
+        The cadence is a GLOBAL setting; there is no per-repo interval.
+        """
+        gs = self.app.global_settings
+        try:
+            active = max(1, int(gs.get("active_interval_seconds", 60)))
+        except (TypeError, ValueError):
+            active = 60
+        try:
+            slow = max(active, int(gs.get("hibernate_interval_seconds", 300)))
+        except (TypeError, ValueError):
+            slow = max(active, 300)
+        try:
+            after_min = float(gs.get("hibernate_after_minutes", 15) or 0)
+        except (TypeError, ValueError):
+            after_min = 0
+
+        if self.hibernate_forced is True:
+            hib = True
+        elif self.hibernate_forced is False:
+            hib = False
+        elif after_min > 0:
+            idle = time.time() - getattr(self, "last_activity_time", time.time())
+            hib = idle >= after_min * 60
+        else:
+            hib = False
+
+        self.hibernating = hib
+        self.interval = active  # keep the mirror in sync with the global setting
+        return slow if hib else active
+
     def polling_loop(self):
         """Polling loop running in its own thread.
 
@@ -159,12 +196,18 @@ class RepoTabPollingMixin:
             while not self.stop_event.is_set():
                 self.sync()  # Blocking - completes before checking stop_event
 
-                # Reload interval (may have changed)
-                try:
-                    cfg = load_repo_config(self.repo_path)
-                    interval = cfg.get("interval_seconds", self.interval)
-                except Exception:
-                    interval = self.interval
+                # Effective interval: fast (active) or slow (hibernation),
+                # decided from global settings + inactivity. Computing it here
+                # (after the sync) means a change detected this cycle already
+                # reset last_activity_time, pulling us back to the fast interval.
+                was_hib = self.hibernating
+                interval = self._effective_interval()
+                if self.hibernating != was_hib:
+                    self.app.ui_call(lambda: self.app.update_tab_color(self))
+                    if self.hibernating:
+                        self.log_msg(f"→ Hibernation (slow poll {interval}s)")
+                    else:
+                        self.log_msg(f"→ Active (fast poll {interval}s)")
 
                 self._cycle_interval = interval  # for the drain gauge
                 self.next_poll_time = time.time() + interval
@@ -176,12 +219,20 @@ class RepoTabPollingMixin:
         finally:
             # Defensive — guarantee the UI matches reality on ANY exit
             self.polling = False
+            self.hibernating = False
+            self.hibernate_forced = None
             self.app.ui_call(lambda: self.btn_poll.configure(text="▶ Start polling"))
             self.app.ui_call(self.stop_countdown)
             self.app.ui_call(lambda: self.app.update_tab_color(self))
 
-    def toggle_polling(self):
-        """Toggle polling on/off."""
+    def toggle_polling(self, resume_hibernating=False):
+        """Toggle polling on/off.
+
+        resume_hibernating: start a repo that was hibernating at the previous
+        session. It starts in auto mode with a backdated inactivity clock, so
+        the first (immediate) sync cycle re-evaluates to hibernation UNLESS
+        that sync detects a change (which resets last_activity_time → active).
+        """
         if not self.git_healthy:
             return
 
@@ -190,6 +241,8 @@ class RepoTabPollingMixin:
             # auto-retry resume intent)
             self.polling = False
             self.polling_interrupted = False
+            self.hibernating = False
+            self.hibernate_forced = None
             self.stop_event.set()  # Signal thread to stop
             self.btn_poll.configure(text="▶ Start polling")
             self.stop_countdown()
@@ -197,11 +250,22 @@ class RepoTabPollingMixin:
             # Start polling
             self.polling = True
             self.polling_interrupted = False
-            self.last_activity_time = time.time()  # fresh grace period
+            self.hibernate_forced = None  # automatic inactivity rule
+            self.interval = self.app.global_settings.get("active_interval_seconds", 60)
+            now = time.time()
+            if resume_hibernating:
+                # Backdate the inactivity clock past the hibernation threshold.
+                try:
+                    after_min = float(self.app.global_settings.get("hibernate_after_minutes", 15) or 0)
+                except (TypeError, ValueError):
+                    after_min = 0
+                self.last_activity_time = now - (after_min * 60 + 1) if after_min > 0 else now
+            else:
+                self.last_activity_time = now  # fresh grace period → starts active
             self._cycle_interval = self.interval   # for the drain gauge
             self.stop_event.clear()  # Reset event
             self.btn_poll.configure(text="⏸ Stop polling")
-            self.next_poll_time = time.time() + self.interval
+            self.next_poll_time = now + self.interval
             self.start_countdown()
             self.polling_thread = threading.Thread(
                 target=self.polling_loop,

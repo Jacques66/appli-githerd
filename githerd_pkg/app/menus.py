@@ -176,6 +176,18 @@ class AppMenusMixin:
             state="normal" if tab.git_healthy else "disabled"
         )
 
+        if tab.polling:
+            if getattr(tab, "hibernating", False):
+                self.repo_menu.add_command(
+                    label="Wake up (active)",
+                    command=lambda t=tab: self.set_tab_hibernation(t.tab_name, False),
+                )
+            else:
+                self.repo_menu.add_command(
+                    label="Hibernate now",
+                    command=lambda t=tab: self.set_tab_hibernation(t.tab_name, True),
+                )
+
         self.repo_menu.add_separator()
 
         # List branches matching prefix
