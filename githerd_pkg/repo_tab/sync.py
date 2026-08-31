@@ -44,6 +44,27 @@ class RepoTabSyncMixin:
             )
             self.lock.release()
 
+    def _remote_heads(self):
+        """Return (heads, ok) where heads is {ref: sha} for the remote's
+        branch heads, obtained via a lightweight `git ls-remote --heads`
+        (no object download). ok is False if the query failed/timed out.
+
+        This is much cheaper than a full fetch and lets the polling loop
+        skip the fetch entirely when the remote hasn't moved.
+        """
+        code, out, _ = run_git(
+            [self.git, "ls-remote", "--heads", self.remote], cwd=self.repo_path)
+        if code != 0:
+            return None, False
+        heads = {}
+        for line in out.splitlines():
+            line = line.strip()
+            if not line or "\t" not in line:
+                continue
+            sha, ref = line.split("\t", 1)
+            heads[ref.strip()] = sha.strip()
+        return heads, True
+
     def _do_sync(self):
         """Perform the actual sync operation."""
         self.set_state("Sync…")
@@ -53,18 +74,39 @@ class RepoTabSyncMixin:
         # below if this sync hits another failure.
         self.sync_error = False
 
-        self.log_msg(f"git fetch {self.remote}")
-        code, _, err = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
-        if code != 0:
-            self.log_msg(f"ERROR fetch: {err}")
-            url = get_remote_url(self.remote, cwd=self.repo_path, git=self.git)
-            if url:
-                self.log_msg(f"  remote URL: {url}")
-            self.log_msg(f"  repo path : {self.repo_path}")
-            self.set_state("ERROR")
-            self.sync_error = True
-            self.stop_polling()
-            return
+        # Cheap remote-change probe: a full fetch downloads objects and is
+        # slow; ls-remote only lists remote head SHAs. If they match the
+        # snapshot from our last successful fetch, nothing new landed
+        # remotely, so we skip the fetch. Local-ahead detection and every
+        # branch comparison below run on the local remote-tracking refs,
+        # which stay valid when the remote hasn't moved — so skipping the
+        # fetch loses nothing.
+        heads, heads_ok = self._remote_heads()
+        skip_fetch = (
+            heads_ok
+            and self._last_remote_heads is not None
+            and heads == self._last_remote_heads
+        )
+
+        if skip_fetch:
+            self.log_msg("ls-remote: aucun changement distant → fetch évité")
+        else:
+            self.log_msg(f"git fetch {self.remote}")
+            code, _, err = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
+            if code != 0:
+                self.log_msg(f"ERROR fetch: {err}")
+                url = get_remote_url(self.remote, cwd=self.repo_path, git=self.git)
+                if url:
+                    self.log_msg(f"  remote URL: {url}")
+                self.log_msg(f"  repo path : {self.repo_path}")
+                self.set_state("ERROR")
+                self.sync_error = True
+                self.stop_polling()
+                return
+            # Fetch succeeded — remember the remote state it brought us to,
+            # so the next cycle can skip the fetch if nothing changes.
+            if heads_ok:
+                self._last_remote_heads = heads
 
         local_ahead = local_main_ahead(self.remote, self.main,
                                        cwd=self.repo_path, git=self.git)

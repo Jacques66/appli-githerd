@@ -54,6 +54,14 @@ class RepoTabPollingMixin:
 
         try:
             run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
+            # Prime the remote-heads snapshot so the first polling cycle can
+            # skip a redundant fetch when nothing has changed since the scan.
+            try:
+                heads, ok = self._remote_heads()
+                if ok:
+                    self._last_remote_heads = heads
+            except Exception:
+                pass
 
             local_ahead = local_main_ahead(self.remote, self.main,
                                           cwd=self.repo_path, git=self.git)

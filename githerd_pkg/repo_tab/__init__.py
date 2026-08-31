@@ -55,6 +55,10 @@ class RepoTabContent(
         self.polling_interrupted = False  # polling was killed by an error → auto-retry may resume it
         self.last_activity_time = time.time()  # last meaningful sync event (for inactivity auto-disable)
         self.next_poll_time = 0
+        # Snapshot of remote branch heads from the last successful fetch,
+        # {ref: sha}. Used to skip the (expensive) fetch when a cheap
+        # `git ls-remote` shows the remote hasn't moved. None = unknown.
+        self._last_remote_heads = None
         self.countdown_job = None
         self.has_update = False
         self.syncing = False

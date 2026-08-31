@@ -13,6 +13,7 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 ## Features
 
 - 🔄 **Real-time polling** — Configurable interval per repo with countdown display
+- 🪶 **Cheap change probe** — Each cycle first runs `git ls-remote --heads` (no object download); the full `git fetch` runs only when a remote head actually moved, cutting network cost on slow paths
 - ⚡ **Auto fast-forward** — Single branch ahead? Sync automatically
 - 🔀 **Smart merge detection** — Multiple branches? Check for disjoint files
 - 🔔 **Sound notifications** — Different sounds for commits, success, and errors
