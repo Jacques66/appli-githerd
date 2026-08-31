@@ -335,4 +335,4 @@ MIT — Copyright (c) 2025 InZeMobile
 
 ## Author
 
-Jacques Lovi. - [InZeMobile](https://github.com/Jacques66)
+[InZeMobile](https://github.com/Jacques66)
