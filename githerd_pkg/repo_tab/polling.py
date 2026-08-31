@@ -148,7 +148,7 @@ class RepoTabPollingMixin:
         self.hibernating accordingly.
 
         Fast (active) interval normally; the slow (hibernation) interval when
-        the repo has been idle for at least hibernate_after_minutes — or when
+        the repo has been idle for at least hibernate_after_seconds — or when
         hibernation is forced on/off manually (hibernate_forced True/False).
         The cadence is a GLOBAL setting; there is no per-repo interval.
         """
@@ -162,17 +162,17 @@ class RepoTabPollingMixin:
         except (TypeError, ValueError):
             slow = max(active, 300)
         try:
-            after_min = float(gs.get("hibernate_after_minutes", 15) or 0)
+            after_sec = float(gs.get("hibernate_after_seconds", 900) or 0)
         except (TypeError, ValueError):
-            after_min = 0
+            after_sec = 0
 
         if self.hibernate_forced is True:
             hib = True
         elif self.hibernate_forced is False:
             hib = False
-        elif after_min > 0:
+        elif after_sec > 0:
             idle = time.time() - getattr(self, "last_activity_time", time.time())
-            hib = idle >= after_min * 60
+            hib = idle >= after_sec
         else:
             hib = False
 
@@ -256,10 +256,10 @@ class RepoTabPollingMixin:
             if resume_hibernating:
                 # Backdate the inactivity clock past the hibernation threshold.
                 try:
-                    after_min = float(self.app.global_settings.get("hibernate_after_minutes", 15) or 0)
+                    after_sec = float(self.app.global_settings.get("hibernate_after_seconds", 900) or 0)
                 except (TypeError, ValueError):
-                    after_min = 0
-                self.last_activity_time = now - (after_min * 60 + 1) if after_min > 0 else now
+                    after_sec = 0
+                self.last_activity_time = now - (after_sec + 1) if after_sec > 0 else now
             else:
                 self.last_activity_time = now  # fresh grace period → starts active
             self._cycle_interval = self.interval   # for the drain gauge

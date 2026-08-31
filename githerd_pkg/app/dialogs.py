@@ -10,7 +10,7 @@ import customtkinter as ctk
 
 from ..config import (
     load_global_settings, save_global_settings,
-    APPEARANCE_MODES, COLOR_THEMES
+    APPEARANCE_MODES, COLOR_THEMES, parse_duration
 )
 from ..git_utils import get_tracked_branches, delete_remote_branch, set_git_timeout
 from ..resources import HELP_TEXT
@@ -75,6 +75,29 @@ class AppDialogsMixin:
             ctk.CTkLabel(parent, text=text,
                          font=ctk.CTkFont(size=15, weight="bold")).grid(
                 row=0, column=0, columnspan=3, sticky="w", pady=(0, 12))
+
+        # Duration fields accept "300", "5m", "2h", "1d". Each is tracked so
+        # live validation can paint it red and save can block on any invalid.
+        duration_fields = []  # list of (entry, sec_key, text_key, default_border)
+
+        def make_duration_entry(parent, row, sec_key, text_key, width=80):
+            entry = ctk.CTkEntry(parent, width=width)
+            text = self.global_settings.get(
+                text_key, str(self.global_settings.get(sec_key, 0)))
+            entry.insert(0, text)
+            entry.grid(row=row, column=1, sticky="w", pady=6)
+            default_border = entry.cget("border_color")
+
+            def validate(*_):
+                if parse_duration(entry.get()) is None:
+                    entry.configure(border_color="#e05555")
+                else:
+                    entry.configure(border_color=default_border)
+
+            entry.bind("<KeyRelease>", validate)
+            entry.bind("<FocusOut>", validate)
+            duration_fields.append((entry, sec_key, text_key, default_border))
+            return entry
 
         # ============================ APPEARANCE ============================
         appf = sections["Appearance"]
@@ -155,13 +178,12 @@ class AppDialogsMixin:
         ctk.CTkButton(gitf, text="📂", width=40, command=browse_git).grid(
             row=1, column=2, pady=8)
 
-        ctk.CTkLabel(gitf, text="Command timeout (s):").grid(
+        ctk.CTkLabel(gitf, text="Command timeout:").grid(
             row=2, column=0, sticky="w", pady=8)
-        timeout_entry = ctk.CTkEntry(gitf, width=80)
-        timeout_entry.insert(0, str(self.global_settings.get("git_timeout_seconds", 30)))
-        timeout_entry.grid(row=2, column=1, sticky="w", pady=8, padx=(10, 5))
+        make_duration_entry(gitf, 2, "git_timeout_seconds", "git_timeout_text")
         ctk.CTkLabel(
-            gitf, text="Abort a git command after this many seconds (default 30).",
+            gitf, text="Abort a git command after this long. Duration: a number = seconds, "
+                       "or add s/m/h/d (e.g. 30, 2m, 1h).",
             text_color="gray", font=ctk.CTkFont(size=11)).grid(
             row=3, column=0, columnspan=3, sticky="w", padx=(0, 5))
 
@@ -220,26 +242,26 @@ class AppDialogsMixin:
         section_title(autof, "Polling & hibernation")
         arow = 1
 
+        ctk.CTkLabel(
+            autof, text="Durations: a number = seconds, or add s/m/h/d (e.g. 30, 5m, 2h, 1d).",
+            text_color="gray", font=ctk.CTkFont(size=11)).grid(
+            row=arow, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        arow += 1
+
         # The single, global active polling cadence (no more per-repo interval).
-        ctk.CTkLabel(autof, text="Active polling interval (sec):").grid(
+        ctk.CTkLabel(autof, text="Active polling interval:").grid(
             row=arow, column=0, sticky="w", pady=6)
-        active_interval_entry = ctk.CTkEntry(autof, width=80)
-        active_interval_entry.insert(0, str(self.global_settings.get("active_interval_seconds", 60)))
-        active_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "active_interval_seconds", "active_interval_text")
         arow += 1
 
-        ctk.CTkLabel(autof, text="Hibernate after inactivity (min, 0=off):").grid(
+        ctk.CTkLabel(autof, text="Hibernate after inactivity (0 = off):").grid(
             row=arow, column=0, sticky="w", pady=6)
-        hibernate_after_entry = ctk.CTkEntry(autof, width=80)
-        hibernate_after_entry.insert(0, str(self.global_settings.get("hibernate_after_minutes", 15)))
-        hibernate_after_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "hibernate_after_seconds", "hibernate_after_text")
         arow += 1
 
-        ctk.CTkLabel(autof, text="Hibernation polling interval (sec):").grid(
+        ctk.CTkLabel(autof, text="Hibernation polling interval:").grid(
             row=arow, column=0, sticky="w", pady=6)
-        hibernate_interval_entry = ctk.CTkEntry(autof, width=80)
-        hibernate_interval_entry.insert(0, str(self.global_settings.get("hibernate_interval_seconds", 300)))
-        hibernate_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "hibernate_interval_seconds", "hibernate_interval_text")
         arow += 1
 
         auto_retry_var = ctk.BooleanVar(value=self.global_settings.get("auto_retry_errored", False))
@@ -247,25 +269,19 @@ class AppDialogsMixin:
                        variable=auto_retry_var).grid(row=arow, column=0, columnspan=3, sticky="w", pady=6)
         arow += 1
 
-        ctk.CTkLabel(autof, text="Auto-retry interval (sec):").grid(
+        ctk.CTkLabel(autof, text="Auto-retry interval:").grid(
             row=arow, column=0, sticky="w", pady=6)
-        auto_retry_interval_entry = ctk.CTkEntry(autof, width=80)
-        auto_retry_interval_entry.insert(0, str(self.global_settings.get("auto_retry_interval_seconds", 60)))
-        auto_retry_interval_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "auto_retry_interval_seconds", "auto_retry_interval_text")
         arow += 1
 
-        ctk.CTkLabel(autof, text="Watch idle repos, start on change (sec, 0=off):").grid(
+        ctk.CTkLabel(autof, text="Watch idle repos, start on change (0 = off):").grid(
             row=arow, column=0, sticky="w", pady=6)
-        watch_idle_entry = ctk.CTkEntry(autof, width=80)
-        watch_idle_entry.insert(0, str(self.global_settings.get("watch_idle_interval_seconds", 0)))
-        watch_idle_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "watch_idle_interval_seconds", "watch_idle_text")
         arow += 1
 
-        ctk.CTkLabel(autof, text="Disable polling after inactivity (hours, 0=off):",
-                     text_color="#e05555").grid(row=arow, column=0, sticky="w", pady=6)
-        inactivity_entry = ctk.CTkEntry(autof, width=80)
-        inactivity_entry.insert(0, str(self.global_settings.get("inactivity_disable_hours", 0)))
-        inactivity_entry.grid(row=arow, column=1, sticky="w", pady=6)
+        ctk.CTkLabel(autof, text="Disable polling after inactivity (0 = off):").grid(
+            row=arow, column=0, sticky="w", pady=6)
+        make_duration_entry(autof, arow, "inactivity_disable_seconds", "inactivity_disable_text")
         arow += 1
 
         # Show the requested (or first) section.
@@ -279,14 +295,51 @@ class AppDialogsMixin:
             old_advanced = self.global_settings.get("advanced_mode", False)
             new_advanced = advanced_var.get()
 
+            # ---- Duration fields: validate all, block the save on any invalid ----
+            parsed = {}  # sec_key -> (seconds, typed_text, text_key)
+            invalid = False
+            for entry, sec_key, text_key, default_border in duration_fields:
+                sec = parse_duration(entry.get())
+                if sec is None:
+                    entry.configure(border_color="#e05555")
+                    invalid = True
+                else:
+                    entry.configure(border_color=default_border)
+                    parsed[sec_key] = (sec, entry.get().strip(), text_key)
+            if invalid:
+                messagebox.showerror(
+                    "Invalid duration",
+                    "One or more duration fields are invalid (highlighted in red). "
+                    "Use a number of seconds, or a number with a unit s/m/h/d "
+                    "(e.g. 30, 5m, 2h, 1d).",
+                    parent=dialog)
+                return
+
+            def _store_duration(sec_key, final):
+                """Persist the seconds value and its display text. If a bound
+                changed the value, the text is updated to match so the field
+                keeps reflecting the effective value."""
+                typed_sec, typed_text, text_key = parsed[sec_key]
+                self.global_settings[sec_key] = final
+                self.global_settings[text_key] = typed_text if final == typed_sec else str(final)
+
+            # Field-specific bounds
+            git_timeout = max(1, parsed["git_timeout_seconds"][0])
+            active_interval = max(1, parsed["active_interval_seconds"][0])
+            _store_duration("git_timeout_seconds", git_timeout)
+            _store_duration("active_interval_seconds", active_interval)
+            _store_duration("hibernate_after_seconds", max(0, parsed["hibernate_after_seconds"][0]))
+            _store_duration("hibernate_interval_seconds",
+                            max(active_interval, parsed["hibernate_interval_seconds"][0]))
+            _store_duration("auto_retry_interval_seconds", max(5, parsed["auto_retry_interval_seconds"][0]))
+            _store_duration("watch_idle_interval_seconds", max(0, parsed["watch_idle_interval_seconds"][0]))
+            _store_duration("inactivity_disable_seconds", max(0, parsed["inactivity_disable_seconds"][0]))
+            # keep the legacy interval key aligned so older builds stay consistent
+            self.global_settings["default_interval_seconds"] = active_interval
+            set_git_timeout(git_timeout)
+
             self.global_settings["appearance_mode"] = appearance_var.get()
             self.global_settings["git_binary"] = git_entry.get().strip()
-            try:
-                new_git_timeout = max(1, int(timeout_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_git_timeout = 30
-            self.global_settings["git_timeout_seconds"] = new_git_timeout
-            set_git_timeout(new_git_timeout)
             self.global_settings["auto_start_polling"] = auto_poll_var.get()
             self.global_settings["start_collapsed"] = collapsed_var.get()
             self.global_settings["advanced_mode"] = new_advanced
@@ -299,39 +352,7 @@ class AppDialogsMixin:
                 new_recent_limit = 5
             self.global_settings["recent_sync_limit"] = new_recent_limit
             self._resize_recent_events(new_recent_limit)
-            try:
-                new_active_interval = max(1, int(active_interval_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_active_interval = 60
-            self.global_settings["active_interval_seconds"] = new_active_interval
-            # keep the legacy key aligned so older builds stay consistent
-            self.global_settings["default_interval_seconds"] = new_active_interval
-            try:
-                new_hib_after = max(0, float(hibernate_after_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_hib_after = 15
-            self.global_settings["hibernate_after_minutes"] = new_hib_after
-            try:
-                new_hib_interval = max(new_active_interval, int(hibernate_interval_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_hib_interval = max(new_active_interval, 300)
-            self.global_settings["hibernate_interval_seconds"] = new_hib_interval
             self.global_settings["auto_retry_errored"] = auto_retry_var.get()
-            try:
-                new_retry_interval = max(5, int(auto_retry_interval_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_retry_interval = 60
-            self.global_settings["auto_retry_interval_seconds"] = new_retry_interval
-            try:
-                new_watch_idle = max(0, int(watch_idle_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_watch_idle = 0
-            self.global_settings["watch_idle_interval_seconds"] = new_watch_idle
-            try:
-                new_inactivity = max(0, float(inactivity_entry.get().strip()))
-            except (ValueError, AttributeError):
-                new_inactivity = 0
-            self.global_settings["inactivity_disable_hours"] = new_inactivity
 
             try:
                 save_global_settings(self.global_settings)

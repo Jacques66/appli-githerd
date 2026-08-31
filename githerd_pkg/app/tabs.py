@@ -188,15 +188,14 @@ class AppTabsMixin:
         import time
         settings = self.global_settings
         try:
-            hours = float(settings.get("inactivity_disable_hours", 24) or 0)
+            cutoff = float(settings.get("inactivity_disable_seconds", 0) or 0)
         except (TypeError, ValueError):
-            hours = 0
-        if hours > 0:
-            cutoff = hours * 3600
+            cutoff = 0
+        if cutoff > 0:
             now = time.time()
             for tab in self.tabs.values():
                 if tab.polling and (now - getattr(tab, "last_activity_time", now)) >= cutoff:
-                    tab.log_msg(f"Inactive for ≥{hours:g}h → stopping polling")
+                    tab.log_msg(f"Inactive for ≥{int(cutoff)}s → stopping polling")
                     tab.polling = False
                     tab.polling_interrupted = False
                     tab.stop_event.set()

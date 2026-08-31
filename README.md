@@ -218,7 +218,7 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Color theme | Color theme (blue, dark-blue, green) |
 | Font zoom | UI font scale factor (default: `1.0`) |
 | Git binary | Path to git executable (default: `git`) |
-| Git command timeout (sec) | Abort a git command (fetch/push/…) after this many seconds (default `30`). Raise it on slow networks or slow paths (e.g. `/mnt/c` under WSL) to reduce spurious `Timeout after 30s` errors. |
+| Git command timeout | Abort a git command (fetch/push/…) after this duration (default `30`). Raise it on slow networks or slow paths (e.g. `/mnt/c` under WSL) to reduce spurious timeout errors. Accepts units (see below), e.g. `90` or `2m`. |
 | Auto-start polling | Start polling automatically when adding a repo |
 | Start collapsed | Start with log panel hidden |
 | Advanced mode | Compact UI with tab interactions (see below) |
@@ -226,13 +226,19 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Restore polling state on restart | Remember and restore polling state per repo |
 | Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
 | Recent activity entries kept | Number of entries shown in the bottom status bar (3 / 5 / 10 / 20, default `5`; the click popup is uncapped) |
-| **Active polling interval (sec)** | **Global** fast polling cadence applied to every repo (default `60`). Replaces the old per-repo interval — there is no per-repo interval field anymore. |
-| **Hibernate after inactivity (min, 0=off)** | After this many minutes without a meaningful sync, an active repo drops to hibernation (slow polling, cyan tab). `0` disables hibernation. Default `15`. |
-| **Hibernation polling interval (sec)** | The slow cadence used while a repo is hibernating (default `300`; clamped to ≥ the active interval). |
+| **Active polling interval** | **Global** fast polling cadence applied to every repo (default `60`, i.e. `1m`). Replaces the old per-repo interval — there is no per-repo interval field anymore. |
+| **Hibernate after inactivity** | After this long without a meaningful sync, an active repo drops to hibernation (slow polling, cyan tab). `0` disables hibernation. Default `15m`. |
+| **Hibernation polling interval** | The slow cadence used while a repo is hibernating (default `5m`; clamped to ≥ the active interval). |
 | Auto-retry repos in error (reconnect) | When on, repos stuck in an error state (git unhealthy or a mid-sync failure) are periodically re-checked; a repo that recovers has its error cleared and, if the error had interrupted polling, polling resumes automatically. STOP-merge states (human decision) are not retried. Default **off**. |
-| Auto-retry interval (sec) | How often errored repos are retried when the option above is on (default `60`, minimum `5`) |
+| Auto-retry interval | How often errored repos are retried when the option above is on (default `60`, minimum `5s`) |
 | Watch idle repos, start on change | Every N seconds, non-polling healthy repos are checked (read-only fetch); if a repo has pending work (local main ahead, or a tracked branch ahead of / behind main), polling is started automatically on it. `0` disables. Default `0`. |
-| Disable polling after inactivity (hours) | Shown in **red** because the unit is hours, not seconds. A repo that has polled without any meaningful sync activity for this many hours has its polling **fully stopped** (a harder step than hibernation). `0` disables. Default `0` — idle repos now hibernate instead of stopping. |
+| Disable polling after inactivity | A repo that has polled without any meaningful sync activity for this long has its polling **fully stopped** (a harder step than hibernation). `0` disables. Default `0` — idle repos now hibernate instead of stopping. |
+
+**Duration fields** (all the intervals/timeouts above, plus the Git command timeout) accept a
+plain number of **seconds**, or a number with a unit suffix — `s`/`m`/`h`/`d` for
+seconds/minutes/hours/days (e.g. `30`, `5m`, `2h`, `1d`). An invalid entry turns the field
+**red** and the **Save** button refuses to save until it is fixed. Values are shown back
+exactly as you typed them.
 
 Stored in `~/.config/githerd/settings.json`
 
