@@ -146,7 +146,9 @@ Format: `HH:MM:SS repo hash  ·  HH:MM:SS repo hash  ·  …`
 
 The newest entry is on the **right**, in white. Older entries are on the left, in gray. The hash is the short HEAD commit (`git rev-parse --short HEAD`) at the moment the event was recorded. Repo names match the tab button labels (aliases honored).
 
-Events recorded: pull/push completed, branches synced, merges, STOP states, remote initialization. Each successful sync produces a single entry. Idle "nothing to do" syncs and errors are skipped.
+Events recorded: pull/push completed, branches synced, merges, STOP states, remote initialization, and a **bare `origin/main` advance** — when new commits land on the remote `main` but there is nothing for GitHerd to sync, the advance is still recorded (short `origin/main` SHA) instead of passing silently. Truly-idle "nothing changed" syncs and errors are skipped.
+
+Every recorded event also plays a beep (beeps are armed a few seconds after launch so startup does not produce a burst).
 
 - **Click the bar** to open a popup listing **every recorded event since startup** (one per line, scrollable). The title shows the total count.
 - The number of entries that fit on the bar itself is configurable in **Global Settings → "Recent activity entries kept"** (default 5, choices: 3 / 5 / 10 / 20). The popup is always uncapped.

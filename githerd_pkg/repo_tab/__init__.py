@@ -69,6 +69,10 @@ class RepoTabContent(
         # {ref: sha}. Used to skip the (expensive) fetch when a cheap
         # `git ls-remote` shows the remote hasn't moved. None = unknown.
         self._last_remote_heads = None
+        # Short SHA of origin/main from the previous cycle, so a bare remote
+        # main advance (new commits on main, nothing for GitHerd to push) is
+        # still surfaced in the status bar instead of dying in the Idle path.
+        self._last_main_sha = None
         self.countdown_job = None
         self.has_update = False
         self.syncing = False

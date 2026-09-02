@@ -65,6 +65,15 @@ class RepoTabSyncMixin:
             heads[ref.strip()] = sha.strip()
         return heads, True
 
+    def _main_sha(self):
+        """Return the short SHA of the remote-tracking origin/main, or None."""
+        code, out, _ = run_git(
+            [self.git, "rev-parse", "--short", f"{self.remote}/{self.main}"],
+            cwd=self.repo_path)
+        if code == 0 and out:
+            return out.strip()
+        return None
+
     def _do_sync(self):
         """Perform the actual sync operation."""
         self.set_state("Sync…")
@@ -88,6 +97,14 @@ class RepoTabSyncMixin:
             and heads == self._last_remote_heads
         )
 
+        # Snapshot origin/main BEFORE the fetch so we can tell, within this
+        # same cycle, whether the fetch brought new commits onto the remote
+        # main. Comparing across the fetch (not across cycles) means GitHerd's
+        # OWN main pushes — which happen later in this cycle — can never be
+        # mis-reported as an incoming advance.
+        main_before = self._main_sha()
+        main_advanced = False
+
         if skip_fetch:
             self.log_msg("ls-remote: aucun changement distant → fetch évité")
         else:
@@ -107,6 +124,10 @@ class RepoTabSyncMixin:
             # so the next cycle can skip the fetch if nothing changes.
             if heads_ok:
                 self._last_remote_heads = heads
+            main_after = self._main_sha()
+            main_advanced = (main_after is not None and main_before is not None
+                             and main_after != main_before)
+            self._last_main_sha = main_after
 
         local_ahead = local_main_ahead(self.remote, self.main,
                                        cwd=self.repo_path, git=self.git)
@@ -244,6 +265,14 @@ class RepoTabSyncMixin:
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), self.main)
                 return
 
+            # A bare origin/main advance (nothing to push, but new commits did
+            # land on main) must still be surfaced — otherwise GitHerd imports
+            # the change silently and the user gets no status-bar entry / beep.
+            if main_advanced:
+                self.log_msg(f"origin/{self.main} advanced → {self._last_main_sha}")
+                self.app.record_event(self.tab_name, self._last_main_sha, self.main)
+                self.app.ui_call(self._mark_if_not_active)
+
             self.set_state("Idle")
             self.set_info("All branches are synchronized")
             self.log_msg("Nothing to do")
@@ -305,10 +334,7 @@ class RepoTabSyncMixin:
         self.set_info(f"Pull from {leader}, push to {other_count} other branches")
         self.log_msg("Sync completed successfully")
         self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), leader)
-
-        # Play sound after successful sync
-        if new_commits_detected:
-            threading.Thread(target=lambda: play_sound("commit"), daemon=True).start()
+        # (The beep now fires from record_event, for every recorded event.)
 
     def push_main_and_branches(self):
         """Push main and all enabled branches."""

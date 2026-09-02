@@ -53,15 +53,21 @@ class RepoTabPollingMixin:
             return
 
         try:
-            run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
+            code, _, _ = run_git([self.git, "fetch", self.remote], cwd=self.repo_path)
             # Prime the remote-heads snapshot so the first polling cycle can
-            # skip a redundant fetch when nothing has changed since the scan.
-            try:
-                heads, ok = self._remote_heads()
-                if ok:
-                    self._last_remote_heads = heads
-            except Exception:
-                pass
+            # skip a redundant fetch when nothing has changed since the scan —
+            # BUT only if the fetch actually succeeded. If the fetch failed
+            # (network/timeout) while a lighter ls-remote would succeed,
+            # priming the cache from the current remote while local refs are
+            # stale would make the first cycle wrongly skip its fetch and miss
+            # a real update. Leaving the cache None forces a real fetch then.
+            if code == 0:
+                try:
+                    heads, ok = self._remote_heads()
+                    if ok:
+                        self._last_remote_heads = heads
+                except Exception:
+                    pass
 
             local_ahead = local_main_ahead(self.remote, self.main,
                                           cwd=self.repo_path, git=self.git)

@@ -95,6 +95,10 @@ class App(
         # timeouts (e.g. WSL interop down) so GitHerd stops hammering.
         self.after(2000, self._check_git_circuit)
 
+        # Arm sync beeps after the startup burst (initial scan + polling
+        # restore) so launch does not produce a storm of beeps.
+        self.after(4000, lambda: setattr(self, "_beeps_enabled", True))
+
         # Always on top
         self.after(500, self.set_always_on_top)
 

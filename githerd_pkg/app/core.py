@@ -49,6 +49,10 @@ class AppCoreMixin:
         # explicit user action (File → Restore all polling) closes it.
         self._polling_circuit_open = False
 
+        # Beeps are armed a few seconds after startup (see App.__init__) so the
+        # initial scan / polling-restore burst does not produce a beep storm.
+        self._beeps_enabled = False
+
     def ui_call(self, fn):
         """Thread-safe: schedule fn() to run on the Tk main thread.
 
@@ -98,6 +102,13 @@ class AppCoreMixin:
             import time
             tab.last_activity_time = time.time()
         self.ui_call(self._refresh_status_bar)
+        # Beep on every recorded sync event, once startup has settled (the
+        # flag is armed a few seconds after launch so the initial scan /
+        # polling-restore burst does not produce a storm of beeps).
+        if getattr(self, "_beeps_enabled", False):
+            import threading
+            from ..notifications import play_sound
+            threading.Thread(target=lambda: play_sound("commit"), daemon=True).start()
 
     def _refresh_status_bar(self):
         """Render the bar as the most recent `_recent_events_limit`
