@@ -285,7 +285,14 @@ class AppTabsMixin:
                 if self.current_tab == tab_name:
                     tab = self.tabs.get(tab_name)
                     if tab and tab.git_healthy:
-                        tab.toggle_polling()
+                        # A hibernating tab is already polling (slowly): the
+                        # common intent is to WAKE it, so one click makes it
+                        # active again instead of stopping it. A further click
+                        # (now active) stops it via toggle_polling.
+                        if tab.polling and getattr(tab, "hibernating", False):
+                            self.set_tab_hibernation(tab_name, False)
+                        else:
+                            tab.toggle_polling()
                 else:
                     self.switch_tab(tab_name)
 
