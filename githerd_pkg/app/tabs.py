@@ -237,6 +237,11 @@ class AppTabsMixin:
             tab.hibernating = False
             tab.last_activity_time = time.time()
             tab.log_msg("→ Active (manual wake)")
+            # Interrupt the current (possibly long hibernation) interval wait
+            # so the next sync happens now at the fast interval, instead of
+            # waiting out the remaining slow cycle.
+            tab._wake_requested = True
+            tab.stop_event.set()
         self.update_tab_color(tab)
 
     # ------------------------------------------------------------------

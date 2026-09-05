@@ -218,9 +218,17 @@ class RepoTabPollingMixin:
                 self._cycle_interval = interval  # for the drain gauge
                 self.next_poll_time = time.time() + interval
 
-                # Wait for interval OR stop signal
-                # wait() returns True if event is set, False on timeout
+                # Wait for the interval, or until interrupted.
+                # wait() returns True if the event is set, False on timeout.
                 if self.stop_event.wait(timeout=interval):
+                    if self._wake_requested and self.polling:
+                        # Not a real stop: a wake (e.g. leaving hibernation)
+                        # interrupted the wait so the next sync happens now at
+                        # the fast interval instead of finishing the long
+                        # hibernation cycle. Re-arm and loop back to sync().
+                        self._wake_requested = False
+                        self.stop_event.clear()
+                        continue
                     break  # Stop signal received
         finally:
             # Defensive — guarantee the UI matches reality on ANY exit
@@ -269,6 +277,7 @@ class RepoTabPollingMixin:
             else:
                 self.last_activity_time = now  # fresh grace period → starts active
             self._cycle_interval = self.interval   # for the drain gauge
+            self._wake_requested = False
             self.stop_event.clear()  # Reset event
             self.btn_poll.configure(text="⏸ Stop polling")
             self.next_poll_time = now + self.interval

@@ -65,6 +65,11 @@ class RepoTabContent(
         # hibernation, False = force active).
         self.hibernating = False
         self.hibernate_forced = None
+        # Set to True right before stop_event.set() to INTERRUPT the current
+        # interval wait without stopping the loop — used to wake a hibernating
+        # repo so its next sync happens now, at the fast interval, instead of
+        # waiting out the long hibernation cycle.
+        self._wake_requested = False
         # Snapshot of remote branch heads from the last successful fetch,
         # {ref: sha}. Used to skip the (expensive) fetch when a cheap
         # `git ls-remote` shows the remote hasn't moved. None = unknown.
