@@ -87,6 +87,12 @@ class RepoTabDialogsMixin:
         prefix_entry = ctk.CTkEntry(main_frame, width=250)
         prefix_entry.insert(0, self.prefix)
         prefix_entry.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
+        ctk.CTkLabel(
+            main_frame,
+            text="Several prefixes allowed (comma/space): \"claude/, feature/\". "
+                 "Empty = all branches except main.",
+            text_color="gray", font=ctk.CTkFont(size=11)).grid(
+            row=6, column=0, columnspan=3, sticky="w", padx=15)
 
         # The polling cadence is a GLOBAL setting now (Settings → Polling &
         # hibernation → Active polling interval), not per-repo, so there is no

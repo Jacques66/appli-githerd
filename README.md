@@ -261,10 +261,9 @@ When enabled, the UI is simplified:
 | Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings. |
 | Remote | Git remote name (auto-detected). |
 | Main branch | Main branch name (auto-detected). |
-| Branch prefix | Prefix of branches to track (default: `claude/`). |
-| Interval | Polling interval in seconds. The default for new repos is set in **Global Settings → Default polling interval (sec) for new repos** (default: `60`). Existing repos keep their own per-repo value. |
+| Branch prefix | Prefix(es) of branches to track (default: `claude/`). **Several prefixes** may be given, separated by commas or spaces (e.g. `claude/, feature/`) — each becomes its own match. **Empty** = track *all* branches, except `main` and the remote `HEAD` (which are never sync targets). Per-branch enable/disable still applies on top. |
 
-Remote / Main branch / Branch prefix / Interval are stored in `<repo>/githerd.toml`. Alias and Directory affect global state (`settings.json`). Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
+Remote / Main branch / Branch prefix are stored in `<repo>/githerd.toml`. The polling cadence is **global** (Settings → Polling & hibernation → Active polling interval), no longer per-repo. Alias and Directory affect global state (`settings.json`). Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
 
 ### Config file format
 
@@ -272,10 +271,11 @@ Remote / Main branch / Branch prefix / Interval are stored in `<repo>/githerd.to
 [git]
 remote = "origin"
 main_branch = "main"
+# one or more prefixes (comma/space separated); empty = all branches except main
 branch_prefix = "claude/"
 
 [sync]
-interval_seconds = 60
+interval_seconds = 60   # legacy: still written for compatibility, no longer read
 ```
 
 ### Persistence

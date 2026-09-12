@@ -123,16 +123,37 @@ def commits_behind(base, tip, cwd=None, git="git"):
     return int(out)
 
 
-def get_tracked_branches(remote, prefix, cwd=None, git="git"):
-    """Get list of remote branches matching prefix."""
+def get_tracked_branches(remote, prefix, cwd=None, git="git", main=None):
+    """Get the list of remote branches to track.
+
+    `prefix` may hold SEVERAL prefixes separated by commas and/or whitespace,
+    e.g. "claude/, feature/" — each becomes its own ref pattern. An EMPTY
+    prefix means "all branches under the remote", but the main branch and the
+    remote HEAD symref are always excluded so they are never treated as
+    branches to synchronize.
+    """
+    prefixes = prefix.replace(",", " ").split() if prefix else []
+    if prefixes:
+        patterns = [f"refs/remotes/{remote}/{p}" for p in prefixes]
+    else:
+        # Empty prefix → every branch under the remote (main/HEAD filtered below).
+        patterns = [f"refs/remotes/{remote}/"]
+
     code, out, err = run_git(
-        [git, "for-each-ref", "--format=%(refname:short)",
-         f"refs/remotes/{remote}/{prefix}"],
+        [git, "for-each-ref", "--format=%(refname:short)", *patterns],
         cwd=cwd
     )
     if code != 0:
         raise RuntimeError(err)
-    return out.splitlines() if out else []
+    branches = out.splitlines() if out else []
+
+    # Never track the main branch or the remote HEAD symref (its short name is
+    # just the remote, e.g. "origin"). This makes an empty prefix safe and is a
+    # harmless no-op for a specific prefix.
+    excluded = {remote}
+    if main:
+        excluded.add(f"{remote}/{main}")
+    return [b for b in branches if b not in excluded]
 
 
 def get_changed_files(base, tip, cwd=None, git="git"):

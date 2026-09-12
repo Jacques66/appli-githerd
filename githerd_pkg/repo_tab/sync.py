@@ -162,7 +162,7 @@ class RepoTabSyncMixin:
             return
 
         all_branches = get_tracked_branches(self.remote, self.prefix,
-                                        cwd=self.repo_path, git=self.git)
+                                        cwd=self.repo_path, git=self.git, main=self.main)
 
         # Filter out disabled branches
         settings = load_global_settings()
@@ -329,7 +329,7 @@ class RepoTabSyncMixin:
         self.last_commit_count[leader] = 0
         self.set_state("Sync OK")
         branches = get_tracked_branches(self.remote, self.prefix,
-                                        cwd=self.repo_path, git=self.git)
+                                        cwd=self.repo_path, git=self.git, main=self.main)
         other_count = len(branches) - 1
         self.set_info(f"Pull from {leader}, push to {other_count} other branches")
         self.log_msg("Sync completed successfully")
@@ -350,7 +350,7 @@ class RepoTabSyncMixin:
         self.log_msg(out if out else "  (ok)")
 
         all_branches = get_tracked_branches(self.remote, self.prefix,
-                                            cwd=self.repo_path, git=self.git)
+                                        cwd=self.repo_path, git=self.git, main=self.main)
 
         # Filter out disabled branches
         settings = load_global_settings()

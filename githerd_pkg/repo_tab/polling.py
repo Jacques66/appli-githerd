@@ -77,7 +77,7 @@ class RepoTabPollingMixin:
                 return
 
             branches = get_tracked_branches(self.remote, self.prefix,
-                                           cwd=self.repo_path, git=self.git)
+                                        cwd=self.repo_path, git=self.git, main=self.main)
 
             ahead_list = []
             diverged_list = []
@@ -381,7 +381,7 @@ class RepoTabPollingMixin:
                 return True
 
             branches = get_tracked_branches(self.remote, self.prefix,
-                                            cwd=self.repo_path, git=self.git)
+                                        cwd=self.repo_path, git=self.git, main=self.main)
             settings = load_global_settings()
             branch_states = settings.get("branch_update_enabled", {}).get(
                 str(self.repo_path), {}

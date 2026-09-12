@@ -515,7 +515,7 @@ class AppDialogsMixin:
         """
         try:
             branches = get_tracked_branches(tab.remote, tab.prefix,
-                                            cwd=tab.repo_path, git=tab.git)
+                                        cwd=tab.repo_path, git=tab.git, main=tab.main)
         except Exception:
             branches = []
         short_names = [b.replace(f"{tab.remote}/", "") for b in branches]
