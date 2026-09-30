@@ -9,6 +9,7 @@ front with a top accent bar. Countdown + update marker live in the
 tab label.
 """
 
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -18,7 +19,7 @@ from ..config import (
     load_global_settings, save_global_settings, load_repo_config,
     save_repo_config
 )
-from ..git_utils import is_git_repo, detect_repo_settings
+from ..git_utils import is_git_repo, detect_repo_settings, scan_watched_dirs
 from ..widgets import TabBar
 from ..repo_tab import RepoTabContent
 
@@ -205,6 +206,98 @@ class AppTabsMixin:
             self.update_title()
         self.after(60000, self._disable_inactive_repos)
 
+    # ------------------------------------------------------------------
+    # Watched directories: auto-add new repos, drop vanished ones
+    # ------------------------------------------------------------------
+
+    def _schedule_scan(self, delay_ms):
+        """(Re)arm the watched-directories scan. Called at startup and
+        after Settings are saved, so a new interval applies at once."""
+        if getattr(self, "_scan_after_id", None):
+            try:
+                self.after_cancel(self._scan_after_id)
+            except Exception:
+                pass
+        self._scan_after_id = self.after(delay_ms, self._scan_tick)
+
+    def _scan_tick(self):
+        self._scan_after_id = None
+        try:
+            interval = int(self.global_settings.get("scan_interval_seconds", 0) or 0)
+        except (TypeError, ValueError):
+            interval = 0
+        if interval <= 0:
+            return  # off; re-armed by the Settings dialog on save
+        self.scan_watched_dirs()
+        self._schedule_scan(max(10, interval) * 1000)
+
+    def _known_repo_paths(self):
+        paths = list(self.tab_paths.values())
+        paths += self.global_settings.get("hidden_repos", [])
+        paths += getattr(self, "_unloaded_repos", [])
+        return list(dict.fromkeys(paths))
+
+    def scan_watched_dirs(self):
+        """Scan the watched directories in a worker thread (a slow /mnt/c
+        must never freeze the UI), then apply the result on the main
+        thread."""
+        dirs = list(self.global_settings.get("scan_directories", []))
+        if not dirs or getattr(self, "_scan_running", False):
+            return
+        self._scan_running = True
+        known = self._known_repo_paths()
+        git = self.global_settings.get("git_binary", "git")
+
+        def work():
+            detected, gone = {}, []
+            try:
+                new, gone = scan_watched_dirs(dirs, known)
+                detected = {p: detect_repo_settings(p, git) for p in new}
+            except Exception as e:
+                print(f"[GitHerd] Directory scan failed: {e!r}",
+                      file=sys.stderr, flush=True)
+            self.ui_call(lambda: self._apply_scan(detected, gone))
+
+        threading.Thread(target=work, name="scan-dirs", daemon=True).start()
+
+    def _apply_scan(self, detected, gone):
+        self._scan_running = False
+        known = set(self._known_repo_paths())
+        changed = False
+        for path, repo_config in detected.items():
+            if path in known:
+                continue  # added meanwhile (e.g. by hand)
+            try:
+                save_repo_config(path, repo_config)
+                tab_name = self.add_repo(path, switch_to=False)
+                self.tabs[tab_name].log_msg(
+                    f"Added automatically (found in watched folder {Path(path).parent})")
+                print(f"[GitHerd] Auto-added {path}", file=sys.stderr, flush=True)
+            except Exception as e:
+                print(f"[GitHerd] Failed to auto-add {path!r}: {e!r}",
+                      file=sys.stderr, flush=True)
+            changed = True
+        for path in gone:
+            self._forget_repo(path)
+            print(f"[GitHerd] Removed {path} (folder gone)", file=sys.stderr, flush=True)
+            changed = True
+        if changed:
+            self.save_current_repos()
+            self.update_repo_menu()
+
+    def _forget_repo(self, repo_path):
+        """Drop a repo whatever its state (open, hidden, not loaded)."""
+        for tab_name, path in list(self.tab_paths.items()):
+            if path == repo_path:
+                self.close_tab(tab_name)
+        hidden = self.global_settings.get("hidden_repos", [])
+        if repo_path in hidden:
+            hidden.remove(repo_path)
+            save_global_settings(self.global_settings)
+        unloaded = getattr(self, "_unloaded_repos", [])
+        if repo_path in unloaded:
+            unloaded.remove(repo_path)
+
     def mark_tab_updated(self, tab):
         if not tab.has_update:
             tab.has_update = True
@@ -280,6 +373,7 @@ class AppTabsMixin:
         if start_polling or auto_start:
             # Single schedule (the `or` dedupes) so we never toggle twice.
             self.after(500, tab_content.toggle_polling)
+        return tab_name
 
     def on_tab_click(self, tab_name):
         """Single click: switch. In advanced mode, clicking the already-

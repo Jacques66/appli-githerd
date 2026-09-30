@@ -92,6 +92,9 @@ class App(
         # Auto-disable polling on repos inactive for N hours (opt-in).
         self.after(60000, self._disable_inactive_repos)
 
+        # Scan the watched directories: add new repos, drop vanished ones.
+        self._schedule_scan(3000)
+
         # Circuit breaker: suspend all polling after 3 consecutive git
         # timeouts (e.g. WSL interop down) so GitHerd stops hammering.
         self.after(2000, self._check_git_circuit)

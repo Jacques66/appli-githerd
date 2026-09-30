@@ -7,6 +7,7 @@ Low-level Git operations and helpers.
 
 import subprocess
 import threading
+from pathlib import Path
 
 from .config import DEFAULT_REPO_CONFIG
 
@@ -213,6 +214,44 @@ def is_git_repo(path, git="git"):
     """Check if path is a git repository."""
     code, _, _ = run_git([git, "rev-parse", "--git-dir"], cwd=path)
     return code == 0
+
+
+def _norm_path(p):
+    try:
+        return str(Path(p).resolve())
+    except Exception:
+        return str(p).rstrip("/\\")
+
+
+def scan_watched_dirs(dirs, known_paths):
+    """Compare the git repos found directly inside `dirs` (first level
+    only) with the known repo paths. Filesystem only — no git call.
+
+    Returns (new, gone): `new` = repo folders not known yet; `gone` = known
+    paths lying directly in a watched dir that no longer hold a repo. A
+    watched dir that cannot be listed (unmounted drive, WSL path down) is
+    skipped entirely, so its repos are never reported as gone.
+    """
+    found, roots = [], set()
+    for d in dirs:
+        root = Path(d)
+        try:
+            children = sorted(root.iterdir())
+        except OSError:
+            continue
+        roots.add(_norm_path(root))
+        for child in children:
+            try:
+                if child.is_dir() and (child / ".git").exists():
+                    found.append(str(child))
+            except OSError:
+                pass
+    known = {_norm_path(p): p for p in known_paths}
+    found_norm = {_norm_path(p) for p in found}
+    new = [p for p in dict.fromkeys(found) if _norm_path(p) not in known]
+    gone = [raw for norm, raw in known.items()
+            if str(Path(norm).parent) in roots and norm not in found_norm]
+    return new, gone
 
 
 def get_short_head(cwd=None, git="git"):

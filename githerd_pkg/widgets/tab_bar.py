@@ -4,6 +4,8 @@ GitHerd — TabBar widget.
 
 A single-canvas tab strip drawn as overlapping, rounded-top trapezoids.
 The active tab is drawn last so it sits in front of its neighbours.
+Tabs that do not fit in the strip's width wrap onto extra rows (the
+canvas grows to fit).
 Per-repo status is the tab's fill colour (green = polling, red = error/
 STOP, neutral = idle); the active tab also gets a top accent bar. The
 countdown and update marker live in the tab label.
@@ -34,12 +36,13 @@ class TabBar(tk.Canvas):
     GLASS_W = 8         # drain gauge width (+50%)
     GLASS_H = 12        # drain gauge height
     GLASS_GAP = 8       # gap between label and gauge (space always reserved)
+    ROW_GAP = 4         # vertical gap between two rows of tabs
 
     def __init__(self, master, font_zoom=1.0,
                  on_click=None, on_double=None, on_middle=None,
                  on_right=None, on_reorder=None, **kwargs):
         self._pal = self._palette()
-        h = self.TOP_PAD + self.TAB_H + self.ACTIVE_EXTRA
+        h = self._height_for(1)
         super().__init__(master, height=h, highlightthickness=0,
                          bg=self._pal["strip"], **kwargs)
 
@@ -229,21 +232,43 @@ class TabBar(tk.Canvas):
             flat += [px, py]
         return flat
 
+    def _row_pitch(self):
+        return self.TAB_H + self.ACTIVE_EXTRA + self.ROW_GAP
+
+    def _height_for(self, rows):
+        return self.TOP_PAD + rows * self._row_pitch() - self.ROW_GAP
+
+    def _baseline(self, row):
+        return self.TOP_PAD + row * self._row_pitch() + self.TAB_H + self.ACTIVE_EXTRA
+
     def _layout(self):
-        """Compute (x0, W) for each tab in display order."""
-        x = self.LEFT_PAD
+        """Compute (x0, W, row) for each tab in display order, starting a
+        new row when a tab would overflow the strip. Returns the number of
+        rows."""
+        width = self.winfo_width()
+        # Not mapped yet (width 1): lay out on one row; <Configure> redraws.
+        limit = width - self.LEFT_PAD if width > 1 else float("inf")
+        x, row = self.LEFT_PAD, 0
         for t in self.tabs:
             t["_w"] = self._tab_width(t)
+            if x > self.LEFT_PAD and x + t["_w"] > limit:
+                row += 1
+                x = self.LEFT_PAD
             t["_x"] = x
+            t["_row"] = row
             x += t["_w"] - self.OVERLAP
-        return x
+        return row + 1
 
     def _redraw(self):
         self.delete("all")
+        rows = self._layout() if self.tabs else 1
+        # Grow/shrink to the number of rows (the <Configure> this triggers
+        # redraws once more with the same layout, then stops).
+        h = self._height_for(rows)
+        if int(self.cget("height")) != h:
+            self.configure(height=h)
         if not self.tabs:
             return
-        self._layout()
-        baseline = self.TOP_PAD + self.TAB_H + self.ACTIVE_EXTRA
         p = self._pal
 
         # inactive first (left→right), then the active one on top
@@ -256,6 +281,7 @@ class TabBar(tk.Canvas):
             is_active = (t["name"] == self.active_name)
             H = self.TAB_H + (self.ACTIVE_EXTRA if is_active else 0)
             x0, W = t["_x"], t["_w"]
+            baseline = self._baseline(t["_row"])
             tag = f"tab:{t['name']}"
 
             pts = self._rounded_trap(x0, W, H, baseline)
@@ -338,20 +364,23 @@ class TabBar(tk.Canvas):
         if not self._dragged and abs(event.x - self._press_x) < 6:
             return
         self._dragged = True
-        # find target index by comparing pointer to each tab's bottom center
+        # find target index: the row under the pointer, then the first tab
+        # of that row whose center is right of the pointer
         names = [t["name"] for t in self.tabs]
         try:
             cur = names.index(self._press_name)
         except ValueError:
             return
-        target = cur
-        for i, t in enumerate(self.tabs):
-            center = t["_x"] + t["_w"] / 2
-            if event.x < center:
+        last_row = self.tabs[-1]["_row"]
+        row = int((event.y - self.TOP_PAD) // self._row_pitch())
+        row = min(max(0, row), last_row)
+        in_row = [i for i, t in enumerate(self.tabs) if t["_row"] == row]
+        target = in_row[-1]
+        for i in in_row:
+            t = self.tabs[i]
+            if event.x < t["_x"] + t["_w"] / 2:
                 target = i
                 break
-        else:
-            target = len(self.tabs) - 1
         if target != cur:
             t = self.tabs.pop(cur)
             self.tabs.insert(target, t)

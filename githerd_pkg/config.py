@@ -90,7 +90,10 @@ DEFAULT_GLOBAL_SETTINGS = {
     "watch_idle_interval_seconds": 0,  # Watch non-polling repos and auto-start polling on change (0 = off)
     "watch_idle_text": "0",
     "inactivity_disable_seconds": 0,  # Auto-STOP polling after this long without activity (0 = off; idle now hibernates instead)
-    "inactivity_disable_text": "0"
+    "inactivity_disable_text": "0",
+    "scan_directories": [],  # Watched folders: git repos found directly inside are added/removed automatically
+    "scan_interval_seconds": 300,  # How often the watched folders are scanned (0 = off)
+    "scan_interval_text": "5m",
 }
 
 APPEARANCE_MODES = ["dark", "light", "system"]

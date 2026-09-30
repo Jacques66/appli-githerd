@@ -21,7 +21,8 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 - 🗑 **Branch cleanup** — Delete branches from the UI
 - 🔘 **Per-branch toggle** — Enable/disable sync per branch with persistence
 - 📌 **Always on top** — Never lose sight of your sync status
-- 📂 **Multi-repo support** — Manage multiple repositories in tabs
+- 📂 **Multi-repo support** — Manage multiple repositories in tabs (wrapping onto several rows when they don't fit)
+- 👀 **Watched directories** — Git repos appearing in chosen folders are added automatically, and removed when they vanish
 - 💾 **Session persistence** — Repos are remembered between sessions
 - ⚙️ **GUI configuration** — Edit settings without touching config files
 - 🔍 **Auto-detection** — Remote and main branch detected automatically
@@ -93,7 +94,8 @@ If the chosen folder is already known to GitHerd — either currently open or in
 
 ### Managing tabs
 
-- **Drag** a tab left/right to reorder it; the new order is saved and restored on next launch
+- **Drag** a tab to reorder it (also across rows); the new order is saved and restored on next launch
+- When the tabs no longer fit in the window width, they wrap onto a second row (then a third, …)
 - **Middle-click** on a tab to hide it (make it inactive — stops polling, keeps settings)
 - **Right-click** on a tab to show the context menu:
   - **Run** — trigger an immediate sync for this repo
@@ -102,6 +104,7 @@ If the chosen folder is already known to GitHerd — either currently open or in
   - **Close** — remove the tab
 - Repositories are saved automatically and restored on next launch
 - Hidden (inactive) repos can be reactivated from **Repository > Inactive repos**
+- Repos can also be added and removed automatically: see **Watched directories** below
 - Each tab has its own polling, status, and log
 
 #### Tab renaming
@@ -212,7 +215,7 @@ Opened via **Repository → Delete branches…**. Same layout as the sync dialog
 
 #### Global settings (Menu ? > Settings)
 
-The dialog is organized into sections (list on the left, content on the right): **Appearance**, **Git**, **General**, **Sync**, **Polling & hibernation**.
+The dialog is organized into sections (list on the left, content on the right): **Appearance**, **Git**, **General**, **Sync**, **Polling & hibernation**, **Watched directories**.
 
 | Setting | Description |
 |---------|-------------|
@@ -234,7 +237,20 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Auto-retry repos in error (reconnect) | When on, repos stuck in an error state (git unhealthy or a mid-sync failure) are periodically re-checked; a repo that recovers has its error cleared and, if the error had interrupted polling, polling resumes automatically. STOP-merge states (human decision) are not retried. Default **off**. |
 | Auto-retry interval | How often errored repos are retried when the option above is on (default `60`, minimum `5s`) |
 | Watch idle repos, start on change | Every N seconds, non-polling healthy repos are checked (read-only fetch); if a repo has pending work (local main ahead, or a tracked branch ahead of / behind main), polling is started automatically on it. `0` disables. Default `0`. |
+| Watched directories | Folders scanned periodically (see below). Add with **Add folder…**, remove with ✕. |
+| Scan every | How often the watched directories are scanned (default `5m`, minimum `10s`). `0` disables the scan. Saving the settings also triggers a scan right away. |
 | Disable polling after inactivity | A repo that has polled without any meaningful sync activity for this long has its polling **fully stopped** (a harder step than hibernation). `0` disables. Default `0` — idle repos now hibernate instead of stopping. |
+
+#### Watched directories
+
+At startup, then at every **Scan every** interval, GitHerd looks at the folders **directly inside** each watched directory (first level only, no recursion):
+
+- A folder holding a Git repository (`.git`) that GitHerd does not know yet — neither open, inactive, nor listed — is **added as a visible tab**, named after the folder. Rename it with **Options… → Alias** if you want something shorter. Remote and main branch are auto-detected; polling follows the usual rules (auto-start / watch idle repos).
+- A known repo lying directly inside a watched directory whose folder (or `.git`) has **disappeared** is **removed** from GitHerd (tab closed, settings forgotten). Nothing is deleted on disk; if the folder comes back, it is added again at the next scan.
+- If a watched directory itself cannot be read (drive not mounted, WSL `/mnt/c` down…), it is skipped: nothing under it is removed.
+- Repos added by hand outside the watched directories are never touched.
+
+The scan runs in a background thread (a slow `/mnt/c` never freezes the window). Each addition/removal is reported on stderr (and in the new tab's log for an addition).
 
 **Duration fields** (all the intervals/timeouts above, plus the Git command timeout) accept a
 plain number of **seconds**, or a number with a unit suffix — `s`/`m`/`h`/`d` for

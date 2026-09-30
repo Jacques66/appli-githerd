@@ -47,7 +47,7 @@ class AppDialogsMixin:
         content.pack(side="left", fill="both", expand=True)
 
         # One frame per section; only the active one is packed.
-        section_order = ["Appearance", "Git", "General", "Sync", "Automation"]
+        section_order = ["Appearance", "Git", "General", "Sync", "Automation", "Directories"]
         sections = {name: ctk.CTkFrame(content, fg_color="transparent")
                     for name in section_order}
 
@@ -284,6 +284,52 @@ class AppDialogsMixin:
         make_duration_entry(autof, arow, "inactivity_disable_seconds", "inactivity_disable_text")
         arow += 1
 
+        # ========================= WATCHED DIRECTORIES =====================
+        dirf = sections["Directories"]
+        section_title(dirf, "Watched directories")
+        ctk.CTkLabel(
+            dirf, text="Git repos found directly inside these folders are added as tabs\n"
+                       "automatically; a repo whose folder disappeared is removed.",
+            justify="left", text_color="gray", font=ctk.CTkFont(size=11)).grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
+
+        scan_dirs = list(self.global_settings.get("scan_directories", []))
+        dir_list = ctk.CTkScrollableFrame(dirf, height=200)
+        dir_list.grid(row=2, column=0, columnspan=3, sticky="ew")
+
+        def render_dirs():
+            for w in dir_list.winfo_children():
+                w.destroy()
+            if not scan_dirs:
+                ctk.CTkLabel(dir_list, text="(no folder watched)",
+                             text_color="gray").pack(anchor="w", padx=6)
+            for d in scan_dirs:
+                row = ctk.CTkFrame(dir_list, fg_color="transparent")
+                row.pack(fill="x", pady=1)
+                ctk.CTkButton(row, text="✕", width=28,
+                              command=lambda d=d: remove_dir(d)).pack(side="right")
+                ctk.CTkLabel(row, text=d, anchor="w").pack(
+                    side="left", fill="x", expand=True, padx=6)
+
+        def remove_dir(d):
+            scan_dirs.remove(d)
+            render_dirs()
+
+        def add_dir():
+            path = filedialog.askdirectory(
+                title="Select a folder to watch", mustexist=True, parent=dialog)
+            if path and path not in scan_dirs:
+                scan_dirs.append(path)
+                render_dirs()
+
+        render_dirs()
+        ctk.CTkButton(dirf, text="Add folder…", command=add_dir).grid(
+            row=3, column=0, sticky="w", pady=8)
+        ctk.CTkLabel(dirf, text="Scan every (0 = off):").grid(
+            row=4, column=0, sticky="w", pady=6)
+        make_duration_entry(dirf, 4, "scan_interval_seconds", "scan_interval_text")
+        dirf.columnconfigure(2, weight=1)
+
         # Show the requested (or first) section.
         show_section(active_section if active_section in sections else "Appearance")
 
@@ -334,6 +380,8 @@ class AppDialogsMixin:
             _store_duration("auto_retry_interval_seconds", max(5, parsed["auto_retry_interval_seconds"][0]))
             _store_duration("watch_idle_interval_seconds", max(0, parsed["watch_idle_interval_seconds"][0]))
             _store_duration("inactivity_disable_seconds", max(0, parsed["inactivity_disable_seconds"][0]))
+            _store_duration("scan_interval_seconds", max(0, parsed["scan_interval_seconds"][0]))
+            self.global_settings["scan_directories"] = scan_dirs
             set_git_timeout(git_timeout)
 
             self.global_settings["appearance_mode"] = appearance_var.get()
@@ -359,6 +407,9 @@ class AppDialogsMixin:
                 return
 
             dialog.destroy()
+
+            # Scan now with the new folders/interval, and re-arm the loop.
+            self._schedule_scan(0)
 
             # Rebuild UI if advanced mode changed
             if old_advanced != new_advanced:
