@@ -6,13 +6,12 @@ Handles global settings, repository configuration, and persistence.
 """
 
 import json
+import os
 import re
+import shutil
+import sys
+import threading
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
 
 # ============================================================
 # DURATION PARSING
@@ -48,9 +47,10 @@ def parse_duration(text):
 # PATHS
 # ============================================================
 
-CONFIG_DIR = Path.home() / ".config" / "githerd"
-REPOS_FILE = CONFIG_DIR / "repos.json"
-SETTINGS_FILE = CONFIG_DIR / "settings.json"
+# The ONE file GitHerd persists to: global settings + every known repo
+# (one entry per repo). Always in the user's home, whatever directory
+# GitHerd is launched from — nothing is ever written inside the repos.
+CONFIG_FILE = Path.home() / ".githerd.json"
 
 # ============================================================
 # DEFAULT SETTINGS
@@ -69,16 +69,17 @@ DEFAULT_GLOBAL_SETTINGS = {
     "color_theme": "blue",
     "last_active_tab": "",
     "restore_polling": False,
+    # Per-repo state: {repo_path: value} maps in memory, stored inside
+    # each repo's entry in the config file (see _REPO_STATE_FIELDS).
     "polling_states": {},
     "hibernation_states": {},  # {repo_path: bool} — was the repo hibernating at last save
     "branch_update_enabled": {},
-    "sync_new_branches_by_default": False,
     "hidden_repos": [],  # List of hidden (inactive) repo paths
     "tab_aliases": {},  # {repo_path: "alias"} for custom tab names
+    "sync_new_branches_by_default": False,
     "recent_sync_limit": 5,  # Number of recent meaningful syncs kept in the status bar
     "active_interval_seconds": 60,  # Global active (fast) polling interval, applies to every repo
     "active_interval_text": "60",
-    "default_interval_seconds": 60,  # DEPRECATED: legacy per-repo seed; kept only to migrate to active_interval_seconds
     "hibernate_after_seconds": 900,  # After this inactivity, an active repo drops to slow "hibernation" polling (0 = off)
     "hibernate_after_text": "15m",
     "hibernate_interval_seconds": 300,  # Slow polling interval used while hibernating
@@ -99,8 +100,79 @@ DEFAULT_REPO_CONFIG = {
     "remote": "origin",
     "main_branch": "main",
     "branch_prefix": "claude/",
-    "interval_seconds": 60
 }
+
+# In-memory settings key → field of a repo entry in the config file.
+_REPO_STATE_FIELDS = {
+    "tab_aliases": "alias",
+    "hidden_repos": "hidden",
+    "polling_states": "polling",
+    "hibernation_states": "hibernating",
+    "branch_update_enabled": "branches",
+}
+
+# ============================================================
+# CONFIG FILE
+# ============================================================
+
+# Settings and repo list share one file and are saved from several
+# threads (polling threads save branch toggles), so every
+# read-modify-write goes through this lock.
+_file_lock = threading.RLock()
+
+
+def _read_config():
+    """Return the config file content as {"settings": {}, "repos": []}."""
+    data = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            # Keep a copy of the unreadable file: the next save would
+            # otherwise replace it with an empty config.
+            bad = CONFIG_FILE.with_name(CONFIG_FILE.name + ".bad")
+            try:
+                shutil.copyfile(CONFIG_FILE, bad)
+            except OSError:
+                pass
+            print(f"[GitHerd] Unreadable {CONFIG_FILE} ({e!r}), copy kept as {bad}",
+                  file=sys.stderr, flush=True)
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("settings", {})
+    data.setdefault("repos", [])
+    return data
+
+
+def _write_config(data):
+    """Write the config file atomically (never leaves a half-written file)."""
+    tmp = CONFIG_FILE.with_name(CONFIG_FILE.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(tmp, CONFIG_FILE)
+
+
+def _new_repo_entry(repo_path):
+    return {
+        "path": repo_path,
+        "alias": "",
+        "hidden": False,
+        **DEFAULT_REPO_CONFIG,
+        "polling": False,
+        "hibernating": False,
+        "branches": {},
+    }
+
+
+def _find_repo(data, repo_path):
+    repo_path = str(repo_path)
+    for entry in data["repos"]:
+        if entry.get("path") == repo_path:
+            return entry
+    return None
 
 # ============================================================
 # GLOBAL SETTINGS
@@ -108,64 +180,50 @@ DEFAULT_REPO_CONFIG = {
 
 
 def load_global_settings():
-    """Load global settings from file."""
-    if SETTINGS_FILE.exists():
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                data = json.load(f)
-                settings = DEFAULT_GLOBAL_SETTINGS.copy()
-                settings.update(data)
-                # Migration: the global active interval replaces the old
-                # per-repo interval seeded from default_interval_seconds. If
-                # a settings file predates active_interval_seconds, carry the
-                # user's old default over so their cadence is preserved.
-                if "active_interval_seconds" not in data and "default_interval_seconds" in data:
-                    try:
-                        settings["active_interval_seconds"] = int(data["default_interval_seconds"])
-                    except (TypeError, ValueError):
-                        pass
-                # For any duration field whose file lacks its *_text (older
-                # files), seed the display text from the stored seconds value.
-                # Done BEFORE the unit migrations below so those can override.
-                for sec_key, text_key in (
-                    ("git_timeout_seconds", "git_timeout_text"),
-                    ("active_interval_seconds", "active_interval_text"),
-                    ("hibernate_after_seconds", "hibernate_after_text"),
-                    ("hibernate_interval_seconds", "hibernate_interval_text"),
-                    ("auto_retry_interval_seconds", "auto_retry_interval_text"),
-                    ("watch_idle_interval_seconds", "watch_idle_text"),
-                    ("inactivity_disable_seconds", "inactivity_disable_text"),
-                ):
-                    if sec_key in data and text_key not in data:
-                        settings[text_key] = str(settings.get(sec_key, 0))
-                # Unit migrations: hibernate_after_minutes → *_seconds,
-                # inactivity_disable_hours → *_seconds. Convert the value and
-                # set a readable display text (overrides the generic seed above).
-                if "hibernate_after_seconds" not in data and "hibernate_after_minutes" in data:
-                    try:
-                        mins = float(data["hibernate_after_minutes"])
-                        settings["hibernate_after_seconds"] = int(mins * 60)
-                        settings["hibernate_after_text"] = f"{mins:g}m" if mins else "0"
-                    except (TypeError, ValueError):
-                        pass
-                if "inactivity_disable_seconds" not in data and "inactivity_disable_hours" in data:
-                    try:
-                        hours = float(data["inactivity_disable_hours"])
-                        settings["inactivity_disable_seconds"] = int(hours * 3600)
-                        settings["inactivity_disable_text"] = f"{hours:g}h" if hours else "0"
-                    except (TypeError, ValueError):
-                        pass
-                return settings
-        except Exception:
-            pass
-    return DEFAULT_GLOBAL_SETTINGS.copy()
+    """Load global settings.
+
+    Per-repo state stored in the repo entries is exposed as the
+    {repo_path: value} maps (hidden_repos: list of paths) the UI uses.
+    """
+    with _file_lock:
+        data = _read_config()
+    settings = DEFAULT_GLOBAL_SETTINGS.copy()
+    settings.update(data["settings"])
+    repos = data["repos"]
+    settings["tab_aliases"] = {e["path"]: e["alias"] for e in repos if e.get("alias")}
+    settings["hidden_repos"] = [e["path"] for e in repos if e.get("hidden")]
+    settings["polling_states"] = {e["path"]: bool(e.get("polling")) for e in repos}
+    settings["hibernation_states"] = {e["path"]: bool(e.get("hibernating")) for e in repos}
+    settings["branch_update_enabled"] = {
+        e["path"]: dict(e["branches"]) for e in repos if e.get("branches")
+    }
+    return settings
 
 
 def save_global_settings(settings):
-    """Save global settings to file."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
+    """Save global settings, and the per-repo state into each repo entry.
+
+    State for a path that is not a known repo is dropped: the repo list
+    (save_repos) decides which repos exist.
+    """
+    with _file_lock:
+        data = _read_config()
+        data["settings"] = {
+            k: v for k, v in settings.items() if k not in _REPO_STATE_FIELDS
+        }
+        aliases = settings.get("tab_aliases", {})
+        hidden = set(settings.get("hidden_repos", []))
+        polling = settings.get("polling_states", {})
+        hibernating = settings.get("hibernation_states", {})
+        branches = settings.get("branch_update_enabled", {})
+        for entry in data["repos"]:
+            path = entry["path"]
+            entry["alias"] = aliases.get(path, "")
+            entry["hidden"] = path in hidden
+            entry["polling"] = bool(polling.get(path, False))
+            entry["hibernating"] = bool(hibernating.get(path, False))
+            entry["branches"] = dict(branches.get(path, {}))
+        _write_config(data)
 
 
 # ============================================================
@@ -174,39 +232,23 @@ def save_global_settings(settings):
 
 
 def load_repo_config(repo_path):
-    """Load repo config from githerd.toml, or use defaults."""
-    config_file = Path(repo_path) / "githerd.toml"
-    if config_file.exists():
-        try:
-            cfg = tomllib.load(open(config_file, "rb"))
-            return {
-                "remote": cfg.get("git", {}).get("remote", DEFAULT_REPO_CONFIG["remote"]),
-                "main_branch": cfg.get("git", {}).get("main_branch", DEFAULT_REPO_CONFIG["main_branch"]),
-                "branch_prefix": cfg.get("git", {}).get("branch_prefix", DEFAULT_REPO_CONFIG["branch_prefix"]),
-                "interval_seconds": cfg.get("sync", {}).get("interval_seconds", DEFAULT_REPO_CONFIG["interval_seconds"])
-            }
-        except Exception:
-            pass
-    return DEFAULT_REPO_CONFIG.copy()
+    """Load a repo's git settings (remote, main branch, prefix), or defaults."""
+    with _file_lock:
+        entry = _find_repo(_read_config(), repo_path) or {}
+    return {k: entry.get(k, v) for k, v in DEFAULT_REPO_CONFIG.items()}
 
 
 def save_repo_config(repo_path, config):
-    """Save repo config to githerd.toml."""
-    config_file = Path(repo_path) / "githerd.toml"
-    # interval_seconds is legacy (the polling cadence is now a global setting,
-    # active_interval_seconds). We still emit a value for backward/forward
-    # compatibility with older builds, but it is no longer read by this one.
-    interval = config.get("interval_seconds", DEFAULT_REPO_CONFIG["interval_seconds"])
-    toml_content = f'''[git]
-remote = "{config['remote']}"
-main_branch = "{config['main_branch']}"
-branch_prefix = "{config['branch_prefix']}"
-
-[sync]
-interval_seconds = {interval}
-'''
-    with open(config_file, "w") as f:
-        f.write(toml_content)
+    """Save a repo's git settings, creating its entry if it is new."""
+    with _file_lock:
+        data = _read_config()
+        entry = _find_repo(data, repo_path)
+        if entry is None:
+            entry = _new_repo_entry(str(repo_path))
+            data["repos"].append(entry)
+        for k, v in DEFAULT_REPO_CONFIG.items():
+            entry[k] = config.get(k, v)
+        _write_config(data)
 
 
 # ============================================================
@@ -215,22 +257,26 @@ interval_seconds = {interval}
 
 
 def load_saved_repos():
-    """Load list of saved repositories."""
-    if REPOS_FILE.exists():
-        try:
-            with open(REPOS_FILE, "r") as f:
-                data = json.load(f)
-                return data.get("repos", [])
-        except Exception:
-            pass
-    return []
+    """Load the list of known repository paths (in tab order)."""
+    with _file_lock:
+        data = _read_config()
+    return [e["path"] for e in data["repos"]]
 
 
 def save_repos(repos):
-    """Save list of repositories."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(REPOS_FILE, "w") as f:
-        json.dump({"repos": repos}, f, indent=2)
+    """Save the list of known repositories, in that order.
+
+    Known repos keep their entry; a new path gets a default entry; a repo
+    no longer listed is forgotten along with its settings.
+    """
+    with _file_lock:
+        data = _read_config()
+        existing = {e["path"]: e for e in data["repos"]}
+        data["repos"] = [
+            existing.get(path) or _new_repo_entry(path)
+            for path in dict.fromkeys(str(p) for p in repos)
+        ]
+        _write_config(data)
 
 
 # ============================================================

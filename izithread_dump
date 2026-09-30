@@ -4,14 +4,14 @@
 # "MainThread" stack shows exactly where the main loop is blocked.
 #
 # The output is shown (in color) AND saved to a timestamped file under
-# ~/.config/githerd/ (override the directory with IZITHREAD_DUMP_DIR).
+# ~/.cache/githerd/ (override the directory with IZITHREAD_DUMP_DIR).
 #
 # py-spy must be installed (`pipx install py-spy` or `pip install py-spy`)
 # and needs root to attach — sudo resets PATH, so we pass it through.
 
 set -euo pipefail
 
-out_dir="${IZITHREAD_DUMP_DIR:-$HOME/.config/githerd}"
+out_dir="${IZITHREAD_DUMP_DIR:-$HOME/.cache/githerd}"
 
 usage() {
     cat <<EOF
@@ -25,7 +25,7 @@ Usage:
   izithread_dump -h|--help  Show this help.
 
 Environment:
-  IZITHREAD_DUMP_DIR   Directory for saved dumps (default: ~/.config/githerd).
+  IZITHREAD_DUMP_DIR   Directory for saved dumps (default: ~/.cache/githerd).
 
 Requires py-spy (pipx install py-spy) and root to attach (uses sudo).
 EOF

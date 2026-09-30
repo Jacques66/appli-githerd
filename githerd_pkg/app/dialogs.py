@@ -334,8 +334,6 @@ class AppDialogsMixin:
             _store_duration("auto_retry_interval_seconds", max(5, parsed["auto_retry_interval_seconds"][0]))
             _store_duration("watch_idle_interval_seconds", max(0, parsed["watch_idle_interval_seconds"][0]))
             _store_duration("inactivity_disable_seconds", max(0, parsed["inactivity_disable_seconds"][0]))
-            # keep the legacy interval key aligned so older builds stay consistent
-            self.global_settings["default_interval_seconds"] = active_interval
             set_git_timeout(git_timeout)
 
             self.global_settings["appearance_mode"] = appearance_var.get()
@@ -452,9 +450,8 @@ class AppDialogsMixin:
 
     def add_repo_dialog(self):
         """Show add repository dialog."""
-        from pathlib import Path
         from ..git_utils import is_git_repo, detect_repo_settings
-        from ..config import save_repo_config
+        from ..config import save_repo_config, load_saved_repos as load_repos_from_file
 
         path = filedialog.askdirectory(
             title="Select a Git repository",
@@ -485,17 +482,10 @@ class AppDialogsMixin:
                 )
                 return
 
-            detected = detect_repo_settings(path, git)
-            # The polling cadence is global now (active_interval_seconds); the
-            # legacy interval_seconds is still written into githerd.toml for
-            # backward compatibility but is no longer read.
-            detected["interval_seconds"] = self.global_settings.get(
-                "active_interval_seconds",
-                self.global_settings.get("default_interval_seconds", 60)
-            )
-            config_file = Path(path) / "githerd.toml"
-            if not config_file.exists():
-                save_repo_config(path, detected)
+            # Keep the saved git settings of a repo already in the config
+            # file (listed but not openable this session).
+            if path not in load_repos_from_file():
+                save_repo_config(path, detect_repo_settings(path, git))
 
             self.add_repo(path)
             self.save_current_repos()

@@ -86,7 +86,7 @@ githerd
 1. **File → Add repository…** (or `Ctrl+O`)
 2. Select a Git repository folder
 3. Remote and main branch are **auto-detected**
-4. A `githerd.toml` config file is created with detected values
+4. The detected values are saved in `~/.githerd.json` (nothing is written inside the repository)
 5. A new tab opens with that repository
 
 If the chosen folder is already known to GitHerd — either currently open or in **Repository → Inactive repos** — the add is refused and a dialog names the existing entry (alias if set, otherwise folder name). Path comparison resolves symlinks and ignores trailing slashes.
@@ -200,7 +200,7 @@ Opened via **Repository → Sync branches…**. Lists every tracked branch with 
 - ✓ — all selected
 - — — mixed (some selected, some not)
 
-Clicking the master while it shows `mixed` or empty enables every branch; clicking it while it shows ✓ disables every branch. Toggle individual checkboxes freely; the master glyph and counter update live. Click **Save** to persist the selection to `settings.json` (under `branch_update_enabled`), or **Cancel** / `Esc` to discard.
+Clicking the master while it shows `mixed` or empty enables every branch; clicking it while it shows ✓ disables every branch. Toggle individual checkboxes freely; the master glyph and counter update live. Click **Save** to persist the selection to `~/.githerd.json` (the repo's `branches`), or **Cancel** / `Esc` to discard.
 
 Disabled branches are excluded from all sync operations (including push after merge) and persist across restarts. Newly discovered branches are **disabled by default**; enable *"Enable sync for newly discovered branches"* in Settings to change this. Non-existent branches are automatically cleaned from persistence on each sync.
 
@@ -242,7 +242,7 @@ seconds/minutes/hours/days (e.g. `30`, `5m`, `2h`, `1d`). An invalid entry turns
 **red** and the **Save** button refuses to save until it is fixed. Values are shown back
 exactly as you typed them.
 
-Stored in `~/.config/githerd/settings.json`
+Stored in `~/.githerd.json`
 
 ### Advanced mode
 
@@ -257,44 +257,52 @@ When enabled, the UI is simplified:
 
 | Setting | Description |
 |---------|-------------|
-| Alias | Display name shown on the tab button, in the bottom-right of the status area, and in the Inactive repos submenu. Leave empty to fall back to the folder name. Stored in `settings.json → tab_aliases`. |
+| Alias | Display name shown on the tab button, in the bottom-right of the status area, and in the Inactive repos submenu. Leave empty to fall back to the folder name. |
 | Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings. |
 | Remote | Git remote name (auto-detected). |
 | Main branch | Main branch name (auto-detected). |
 | Branch prefix | Prefix(es) of branches to track (default: `claude/`). **Several prefixes** may be given, separated by commas or spaces (e.g. `claude/, feature/`) — each becomes its own match. **Empty** = track *all* branches, except `main` and the remote `HEAD` (which are never sync targets). Per-branch enable/disable still applies on top. |
 
-Remote / Main branch / Branch prefix are stored in `<repo>/githerd.toml`. The polling cadence is **global** (Settings → Polling & hibernation → Active polling interval), no longer per-repo. Alias and Directory affect global state (`settings.json`). Changing the Directory validates the new folder is a Git repository, then migrates the tab and all path-keyed settings (alias, per-branch sync toggles, polling state) to the new path.
-
-### Config file format
-
-```toml
-[git]
-remote = "origin"
-main_branch = "main"
-# one or more prefixes (comma/space separated); empty = all branches except main
-branch_prefix = "claude/"
-
-[sync]
-interval_seconds = 60   # legacy: still written for compatibility, no longer read
-```
+All of these are stored in the repo's entry of `~/.githerd.json`. The polling cadence is **global** (Settings → Polling & hibernation → Active polling interval), no longer per-repo. Changing the Directory validates the new folder is a Git repository, then moves the tab and all its settings (alias, per-branch sync toggles, polling state) to the new path.
 
 ### Persistence
 
-| File | Content |
-|------|---------|
-| `~/.config/githerd/repos.json` | List of open repositories |
-| `~/.config/githerd/settings.json` | Global settings + polling states + branch sync states |
-| `<repo>/githerd.toml` | Per-repo settings |
+GitHerd keeps **everything** in a single file, `~/.githerd.json`, whatever directory it is launched from. Nothing is written inside the repositories.
 
-The `settings.json` file includes:
-- `polling_states`: per-repo polling state (for restore on restart)
-- `branch_update_enabled`: per-repo, per-branch sync enabled state
-- `hidden_repos`: list of inactive repo paths
-- `tab_aliases`: custom tab names (`{repo_path: "alias"}`)
-- `recent_sync_limit`: status-bar entry count
-- `default_interval_seconds`: default polling interval for newly added repos
-- `window_width`, `window_x`, `window_y`: window geometry restored at next start
-- `start_collapsed`, `last_active_tab`: UI state restored at next start
+```json
+{
+  "settings": {
+    "git_binary": "git",
+    "active_interval_seconds": 60,
+    "restore_polling": true,
+    "last_active_tab": "myrepo",
+    "window_width": 1245
+  },
+  "repos": [
+    {
+      "path": "/home/me/src/myrepo",
+      "alias": "MR",
+      "hidden": false,
+      "remote": "origin",
+      "main_branch": "main",
+      "branch_prefix": "claude/",
+      "polling": true,
+      "hibernating": false,
+      "branches": { "claude/some-feature": false }
+    }
+  ]
+}
+```
+
+- `settings`: global settings (the Settings dialog) and UI state restored at next start (`window_width`, `window_x`, `window_y`, `start_collapsed`, `last_active_tab`).
+- `repos`: every known repository, in tab order, one entry each:
+  - `alias`: custom tab name (empty = folder name)
+  - `hidden`: inactive repo (Repository → Inactive repos)
+  - `remote`, `main_branch`, `branch_prefix`: git settings — one or more prefixes (comma/space separated); empty = all branches except main
+  - `polling`, `hibernating`: state at last close, restored on restart when `restore_polling` is on
+  - `branches`: per-branch sync enabled state
+
+The file is written atomically. If it ever becomes unreadable (e.g. a typo while hand-editing), a copy is kept as `~/.githerd.json.bad` before anything overwrites it.
 
 ## Requirements
 
@@ -343,7 +351,7 @@ If the window ever becomes unresponsive, capture a thread dump **while it is fro
 ./izithread_dump
 ```
 
-It runs `py-spy dump` against the live GitHerd process (needs `py-spy` installed — `pipx install py-spy` — and root to attach), prints all thread stacks, and saves a timestamped copy under `~/.config/githerd/thread-dump-*.txt`. The `MainThread` stack shows exactly where the UI is blocked.
+It runs `py-spy dump` against the live GitHerd process (needs `py-spy` installed — `pipx install py-spy` — and root to attach), prints all thread stacks, and saves a timestamped copy under `~/.cache/githerd/thread-dump-*.txt`. The `MainThread` stack shows exactly where the UI is blocked.
 
 ## Why GitHerd?
 

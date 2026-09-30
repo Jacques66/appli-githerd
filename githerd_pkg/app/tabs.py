@@ -553,6 +553,11 @@ class AppTabsMixin:
         tab.base_tab_name = Path(new_path).name
         self.tab_paths[tab_name] = new_path
 
+        # Create the repo's entry under its new path first: per-repo state
+        # (alias, branch toggles…) is only saved for known repos. The old
+        # entry is dropped by save_current_repos below.
+        save_repo_config(new_path, tab.repo_config)
+
         s = self.global_settings
         for key in ("branch_update_enabled", "tab_aliases", "polling_states", "hibernation_states"):
             d = s.get(key)
