@@ -192,7 +192,7 @@ class AppMenusMixin:
 
         # List branches matching prefix
         try:
-            branches = get_tracked_branches(tab.remote, tab.prefix,
+            branches = get_tracked_branches(tab.remote, tab.effective_prefix(),
                                         cwd=tab.repo_path, git=tab.git, main=tab.main)
         except:
             branches = []

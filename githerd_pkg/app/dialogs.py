@@ -237,6 +237,19 @@ class AppDialogsMixin:
             row=srow, column=1, sticky="w", pady=6)
         srow += 1
 
+        ctk.CTkLabel(syncf, text="Default branch prefix:").grid(
+            row=srow, column=0, sticky="w", pady=6)
+        branch_prefix_entry = ctk.CTkEntry(syncf, width=180)
+        branch_prefix_entry.insert(0, self.global_settings.get("branch_prefix_default", "claude/"))
+        branch_prefix_entry.grid(row=srow, column=1, sticky="w", pady=6)
+        srow += 1
+        ctk.CTkLabel(
+            syncf, text="Inherited by repos whose own prefix is empty. Several allowed "
+                        "(comma/space). Per repo: list=replace, +x=add, *=all.",
+            text_color="gray", font=ctk.CTkFont(size=11)).grid(
+            row=srow, column=0, columnspan=3, sticky="w")
+        srow += 1
+
         # ==================== POLLING & HIBERNATION ========================
         autof = sections["Automation"]
         section_title(autof, "Polling & hibernation")
@@ -392,6 +405,7 @@ class AppDialogsMixin:
             self.global_settings["desktop_notifications"] = notif_var.get()
             self.global_settings["restore_polling"] = restore_poll_var.get()
             self.global_settings["sync_new_branches_by_default"] = sync_new_var.get()
+            self.global_settings["branch_prefix_default"] = branch_prefix_entry.get().strip()
             try:
                 new_recent_limit = int(recent_limit_var.get())
             except ValueError:
@@ -555,7 +569,7 @@ class AppDialogsMixin:
         Save/Cancel/Delete buttons into `btn_frame`.
         """
         try:
-            branches = get_tracked_branches(tab.remote, tab.prefix,
+            branches = get_tracked_branches(tab.remote, tab.effective_prefix(),
                                         cwd=tab.repo_path, git=tab.git, main=tab.main)
         except Exception:
             branches = []

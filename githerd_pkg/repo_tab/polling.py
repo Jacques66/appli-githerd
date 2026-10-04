@@ -76,7 +76,7 @@ class RepoTabPollingMixin:
                 self.set_info(f"+{local_ahead} commits to push — click Sync now")
                 return
 
-            branches = get_tracked_branches(self.remote, self.prefix,
+            branches = get_tracked_branches(self.remote, self.effective_prefix(),
                                         cwd=self.repo_path, git=self.git, main=self.main)
 
             ahead_list = []
@@ -380,7 +380,7 @@ class RepoTabPollingMixin:
             if local_ahead != 0:  # >0 ahead, or -1 bootstrap needed
                 return True
 
-            branches = get_tracked_branches(self.remote, self.prefix,
+            branches = get_tracked_branches(self.remote, self.effective_prefix(),
                                         cwd=self.repo_path, git=self.git, main=self.main)
             settings = load_global_settings()
             branch_states = settings.get("branch_update_enabled", {}).get(

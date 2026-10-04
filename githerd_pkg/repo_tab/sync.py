@@ -161,7 +161,7 @@ class RepoTabSyncMixin:
                 self.app.record_event(self.tab_name, get_short_head(self.repo_path, self.git), self.main)
             return
 
-        all_branches = get_tracked_branches(self.remote, self.prefix,
+        all_branches = get_tracked_branches(self.remote, self.effective_prefix(),
                                         cwd=self.repo_path, git=self.git, main=self.main)
 
         # Filter out disabled branches
@@ -328,7 +328,7 @@ class RepoTabSyncMixin:
 
         self.last_commit_count[leader] = 0
         self.set_state("Sync OK")
-        branches = get_tracked_branches(self.remote, self.prefix,
+        branches = get_tracked_branches(self.remote, self.effective_prefix(),
                                         cwd=self.repo_path, git=self.git, main=self.main)
         other_count = len(branches) - 1
         self.set_info(f"Pull from {leader}, push to {other_count} other branches")
@@ -349,7 +349,7 @@ class RepoTabSyncMixin:
             return False
         self.log_msg(out if out else "  (ok)")
 
-        all_branches = get_tracked_branches(self.remote, self.prefix,
+        all_branches = get_tracked_branches(self.remote, self.effective_prefix(),
                                         cwd=self.repo_path, git=self.git, main=self.main)
 
         # Filter out disabled branches

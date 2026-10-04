@@ -230,6 +230,7 @@ The dialog is organized into sections (list on the left, content on the right): 
 | Desktop notifications | Enable system notifications (notify-send) |
 | Restore polling state on restart | Remember and restore polling state per repo |
 | Enable sync for newly discovered branches | Enable sync by default for new branches (default: **off**) |
+| Default branch prefix | Global prefix inherited by every repo whose own **Branch prefix** (Options…) is empty (default: `claude/`). Several allowed (comma/space). Each repo can override it (replace), extend it (`+x`), or take all branches (`*`). |
 | Recent activity entries kept | Number of entries shown in the bottom status bar (3 / 5 / 10 / 20, default `5`; the click popup is uncapped) |
 | **Active polling interval** | **Global** fast polling cadence applied to every repo (default `60`, i.e. `1m`). Replaces the old per-repo interval — there is no per-repo interval field anymore. |
 | **Hibernate after inactivity** | After this long without a meaningful sync, an active repo drops to hibernation (slow polling, cyan tab). `0` disables hibernation. Default `15m`. |
@@ -277,7 +278,7 @@ When enabled, the UI is simplified:
 | Directory | The repository folder. Use **Browse…** to re-point this tab to a different Git folder (e.g. after moving the repo on disk) — the tab keeps its alias and per-branch settings. |
 | Remote | Git remote name (auto-detected). |
 | Main branch | Main branch name (auto-detected). |
-| Branch prefix | Prefix(es) of branches to track (default: `claude/`). **Several prefixes** may be given, separated by commas or spaces (e.g. `claude/, feature/`) — each becomes its own match. **Empty** = track *all* branches, except `main` and the remote `HEAD` (which are never sync targets). Per-branch enable/disable still applies on top. |
+| Branch prefix | Which branches this repo tracks. **Empty** (the default for new repos) → inherit the global **Default branch prefix**. A list (comma/space) → **replace** (e.g. `claude/ feature/`). A `+`-prefixed token → **add** to the global (e.g. `+feature/` = global + `feature/`). `*` → **all** branches except `main`. Per-branch enable/disable still applies on top. |
 
 All of these are stored in the repo's entry of `~/.githerd.json`. The polling cadence is **global** (Settings → Polling & hibernation → Active polling interval), no longer per-repo. Changing the Directory validates the new folder is a Git repository, then moves the tab and all its settings (alias, per-branch sync toggles, polling state) to the new path.
 

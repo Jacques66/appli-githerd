@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 import customtkinter as ctk
 
-from ..config import load_repo_config
+from ..config import load_repo_config, resolve_branch_prefix
 from .ui import RepoTabUIMixin
 from .sync import RepoTabSyncMixin
 from .polling import RepoTabPollingMixin
@@ -89,6 +89,17 @@ class RepoTabContent(
 
         # Start initial scan
         threading.Thread(target=self.initial_scan, daemon=True).start()
+
+    def effective_prefix(self):
+        """Resolve this repo's branch prefix against the global default.
+
+        See config.resolve_branch_prefix: empty inherits the global default,
+        a list replaces it, a '+'-prefixed token adds to it, '*' means all
+        branches (except main).
+        """
+        return resolve_branch_prefix(
+            self.prefix,
+            self.app.global_settings.get("branch_prefix_default", "claude/"))
 
 
 __all__ = ["RepoTabContent"]

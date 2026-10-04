@@ -89,8 +89,8 @@ class RepoTabDialogsMixin:
         prefix_entry.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(10, 15), pady=8)
         ctk.CTkLabel(
             main_frame,
-            text="Several prefixes allowed (comma/space): \"claude/, feature/\". "
-                 "Empty = all branches except main.",
+            text="Empty = inherit the global default. Several allowed (comma/space). "
+                 "list = replace · +x = add to global · * = all branches except main.",
             text_color="gray", font=ctk.CTkFont(size=11)).grid(
             row=6, column=0, columnspan=3, sticky="w", padx=15)
 

@@ -43,6 +43,41 @@ def parse_duration(text):
         return None
     return int(round(seconds))
 
+
+# ============================================================
+# BRANCH PREFIX RESOLUTION
+# ============================================================
+
+def resolve_branch_prefix(repo_prefix, global_default):
+    """Resolve the per-repo branch prefix against the global default.
+
+    Grammar of the per-repo field (tokens separated by commas/whitespace):
+      - empty            → inherit the global default
+      - "claude/ x/"     → replace: exactly these prefixes
+      - "+feature/"      → additive: global default PLUS these (any token with
+                           a leading '+' switches the field to additive mode)
+      - "*"              → all branches (returned as "" — get_tracked_branches
+                           treats an empty prefix as "every branch except main")
+
+    Returns the effective prefix STRING to hand to get_tracked_branches.
+    """
+    repo_tokens = (repo_prefix or "").replace(",", " ").split()
+    global_tokens = (global_default or "").replace(",", " ").split()
+
+    if not repo_tokens:
+        return " ".join(global_tokens)          # inherit
+    if "*" in repo_tokens:
+        return ""                                # all branches (except main)
+    if any(t.startswith("+") for t in repo_tokens):
+        added = [t.lstrip("+") for t in repo_tokens if t.lstrip("+")]
+        effective = list(global_tokens)
+        for t in added:
+            if t not in effective:
+                effective.append(t)
+        return " ".join(effective)               # additive
+    return " ".join(repo_tokens)                 # replace
+
+
 # ============================================================
 # PATHS
 # ============================================================
@@ -77,6 +112,7 @@ DEFAULT_GLOBAL_SETTINGS = {
     "hidden_repos": [],  # List of hidden (inactive) repo paths
     "tab_aliases": {},  # {repo_path: "alias"} for custom tab names
     "sync_new_branches_by_default": False,
+    "branch_prefix_default": "claude/",  # Global default branch prefix; per-repo empty prefix inherits this
     "recent_sync_limit": 5,  # Number of recent meaningful syncs kept in the status bar
     "active_interval_seconds": 60,  # Global active (fast) polling interval, applies to every repo
     "active_interval_text": "60",
@@ -102,7 +138,8 @@ COLOR_THEMES = ["blue", "dark-blue", "green"]
 DEFAULT_REPO_CONFIG = {
     "remote": "origin",
     "main_branch": "main",
-    "branch_prefix": "claude/",
+    # Empty by default so a repo inherits the global branch_prefix_default.
+    "branch_prefix": "",
 }
 
 # In-memory settings key → field of a repo entry in the config file.
