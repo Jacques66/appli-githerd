@@ -403,4 +403,4 @@ MIT — Copyright (c) 2025 InZeMobile
 
 ## Author
 
-[InZeMobile](https://github.com/Jacques66)
+[InZeMobile](https://github.com/Jacques66) — inzemobile@gmail.com
