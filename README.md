@@ -49,7 +49,7 @@ Keep multiple Git branches aligned in real-time. Ideal for parallel AI coding se
 
 ## Installation
 ```bash
-git clone https://github.com/Jacques66/GitHerd.git
+git clone https://github.com/Jacques66/appli-izigitherd.git
 ```
 
 ### Windows executable (build from WSL)
